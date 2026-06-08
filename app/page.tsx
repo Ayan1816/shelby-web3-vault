@@ -13,33 +13,35 @@ export default function App() {
 }
 
 function ShelbyVault() {
-  // এখানে আমরা signMessage নামের নতুন একটি ফিচার যুক্ত করেছি
-  const { connected, account, connect, disconnect, wallets, signMessage } = useWallet();
+  // এখানে আমরা signAndSubmitTransaction নামের আসল ট্রানজ্যাকশন ফিচারটি যুক্ত করেছি
+  const { connected, account, connect, disconnect, wallets, signAndSubmitTransaction } = useWallet();
   const [code, setCode] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // এই ফাংশনটি এখন আসল ওয়ালেটের সাথে কাজ করবে
   const handleUpload = async () => {
     if (!code) return alert("Please enter some code first!");
     
     setIsUploading(true);
     
     try {
-      // ওয়ালেটকে একটি মেসেজ সাইন (Sign) করতে বলা হচ্ছে
+      // এটি ব্লকচেইনে ডেটা পাঠানোর আসল পেলোড (Payload)
       const payload = {
-        message: "I want to secure this code in Shelby Vault!",
-        nonce: Math.random().toString(36).substring(2, 10),
+        type: "entry_function_payload",
+        function: `${account?.address || "0x1"}::vault::store_data`,
+        type_arguments: [],
+        arguments: [code],
       };
       
-      const response = await signMessage(payload);
+      // ওয়ালেটে আসল ট্রানজ্যাকশন উইন্ডো পপ-আপ হবে
+      const response = await signAndSubmitTransaction(payload);
       
       if (response) {
-        alert("Success! Your wallet approved the action.");
-        setCode(""); // কাজ শেষ হলে বক্স ফাঁকা করে দেওয়া
+        alert("Awesome! Transaction submitted to Aptos Blockchain.");
+        setCode(""); // সফল হলে বক্স খালি হবে
       }
     } catch (error) {
-      alert("Action cancelled by user.");
+      alert("Transaction declined or simulation failed.");
     } finally {
       setIsUploading(false);
     }
@@ -141,7 +143,7 @@ function ShelbyVault() {
               }`}
             >
               <UploadCloud className="w-5 h-5" />
-              {isUploading ? "WAITING FOR WALLET..." : "SECURE TO SHELBY"}
+              {isUploading ? "SENDING TO BLOCKCHAIN..." : "SECURE TO SHELBY"}
             </button>
             {!connected && <p className="text-xs text-red-400 text-center mt-2">Connect wallet to upload</p>}
           </div>
