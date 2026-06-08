@@ -13,18 +13,36 @@ export default function App() {
 }
 
 function ShelbyVault() {
-  const { connected, account, connect, disconnect, wallets } = useWallet();
+  // এখানে আমরা signMessage নামের নতুন একটি ফিচার যুক্ত করেছি
+  const { connected, account, connect, disconnect, wallets, signMessage } = useWallet();
   const [code, setCode] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const handleUpload = () => {
+  // এই ফাংশনটি এখন আসল ওয়ালেটের সাথে কাজ করবে
+  const handleUpload = async () => {
     if (!code) return alert("Please enter some code first!");
+    
     setIsUploading(true);
-    setTimeout(() => {
+    
+    try {
+      // ওয়ালেটকে একটি মেসেজ সাইন (Sign) করতে বলা হচ্ছে
+      const payload = {
+        message: "I want to secure this code in Shelby Vault!",
+        nonce: Math.random().toString(36).substring(2, 10),
+      };
+      
+      const response = await signMessage(payload);
+      
+      if (response) {
+        alert("Success! Your wallet approved the action.");
+        setCode(""); // কাজ শেষ হলে বক্স ফাঁকা করে দেওয়া
+      }
+    } catch (error) {
+      alert("Action cancelled by user.");
+    } finally {
       setIsUploading(false);
-      alert("Code secured in Shelby Vault! (Demo)");
-    }, 2000);
+    }
   };
 
   const copyAddress = () => {
@@ -123,7 +141,7 @@ function ShelbyVault() {
               }`}
             >
               <UploadCloud className="w-5 h-5" />
-              {isUploading ? "ENCRYPTING & UPLOADING..." : "SECURE TO SHELBY"}
+              {isUploading ? "WAITING FOR WALLET..." : "SECURE TO SHELBY"}
             </button>
             {!connected && <p className="text-xs text-red-400 text-center mt-2">Connect wallet to upload</p>}
           </div>
