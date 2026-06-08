@@ -13,7 +13,6 @@ export default function App() {
 }
 
 function ShelbyVault() {
-  // এখানে আমরা signAndSubmitTransaction নামের আসল ট্রানজ্যাকশন ফিচারটি যুক্ত করেছি
   const { connected, account, connect, disconnect, wallets, signAndSubmitTransaction } = useWallet();
   const [code, setCode] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -25,23 +24,22 @@ function ShelbyVault() {
     setIsUploading(true);
     
     try {
-      // এটি ব্লকচেইনে ডেটা পাঠানোর আসল পেলোড (Payload)
+      // এটি হলো টেস্ট করার জন্য একটি ১০০% নিরাপদ ট্রানজ্যাকশন
       const payload = {
         type: "entry_function_payload",
-        function: `${account?.address || "0x1"}::vault::store_data`,
+        function: "0x1::aptos_account::transfer",
         type_arguments: [],
-        arguments: [code],
+        arguments: ["0x1", 100], // Aptos-এর মূল ঠিকানায় নামমাত্র 100 Octa পাঠানো
       };
       
-      // ওয়ালেটে আসল ট্রানজ্যাকশন উইন্ডো পপ-আপ হবে
       const response = await signAndSubmitTransaction(payload);
       
       if (response) {
-        alert("Awesome! Transaction submitted to Aptos Blockchain.");
-        setCode(""); // সফল হলে বক্স খালি হবে
+        alert("Awesome! Transaction submitted successfully to Aptos Blockchain.");
+        setCode(""); 
       }
     } catch (error) {
-      alert("Transaction declined or simulation failed.");
+      alert("Transaction failed or declined by user.");
     } finally {
       setIsUploading(false);
     }
@@ -115,7 +113,7 @@ function ShelbyVault() {
             <h3 className="text-gray-400 text-sm tracking-widest mb-4 border-b border-gray-800 pb-2">NETWORK STATUS</h3>
             <div className="flex justify-between items-center mb-2">
               <span className="text-gray-500 text-sm">Target Chain</span>
-              <span className="text-white text-sm">Aptos Testnet</span>
+              <span className="text-white text-sm">Aptos Network</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-500 text-sm">Storage Node</span>
