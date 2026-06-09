@@ -24,12 +24,13 @@ function ShelbyVault() {
     setIsUploading(true);
     
     try {
-      // এটি হলো টেস্ট করার জন্য একটি ১০০% নিরাপদ ট্রানজ্যাকশন
+      // লেটেস্ট ভার্সন (v3) অনুযায়ী ট্রানজ্যাকশনের নতুন প্যাকেটের ডিজাইন
       const payload = {
-        type: "entry_function_payload",
-        function: "0x1::aptos_account::transfer",
-        type_arguments: [],
-        arguments: ["0x1", 100], // Aptos-এর মূল ঠিকানায় নামমাত্র 100 Octa পাঠানো
+        data: {
+          function: "0x1::aptos_account::transfer",
+          typeArguments: [],
+          functionArguments: [account?.address, 100], // টেস্ট হিসেবে নিজের অ্যাড্রেসেই ১০০ অক্টা পাঠানো
+        }
       };
       
       const response = await signAndSubmitTransaction(payload);
@@ -39,7 +40,8 @@ function ShelbyVault() {
         setCode(""); 
       }
     } catch (error) {
-      alert("Transaction failed or declined by user.");
+      // এরর মেসেজটি আপডেট করে দিলাম যাতে বুঝতে সুবিধা হয়
+      alert("Please check the Petra Wallet extension in Mises menu to approve!");
     } finally {
       setIsUploading(false);
     }
@@ -141,7 +143,7 @@ function ShelbyVault() {
               }`}
             >
               <UploadCloud className="w-5 h-5" />
-              {isUploading ? "SENDING TO BLOCKCHAIN..." : "SECURE TO SHELBY"}
+              {isUploading ? "WAITING FOR WALLET..." : "SECURE TO SHELBY"}
             </button>
             {!connected && <p className="text-xs text-red-400 text-center mt-2">Connect wallet to upload</p>}
           </div>
