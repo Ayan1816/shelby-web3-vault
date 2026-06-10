@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Lock, Unlock, UploadCloud, Copy, CheckCircle } from "lucide-react";
+import { Lock, Unlock, UploadCloud, Copy, CheckCircle, ExternalLink } from "lucide-react";
 
 export default function App() {
   return (
@@ -17,31 +17,33 @@ function ShelbyVault() {
   const [code, setCode] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
+  // নতুন ফিচার: ব্লকচেইনের লিংক সেভ করে রাখার জন্য
+  const [txHash, setTxHash] = useState("");
 
   const handleUpload = async () => {
     if (!code) return alert("Please enter some code first!");
     
     setIsUploading(true);
+    setTxHash(""); // আগের লিংক মুছে ফেলা
     
     try {
-      // লেটেস্ট ভার্সন (v3) অনুযায়ী ট্রানজ্যাকশনের নতুন প্যাকেটের ডিজাইন
       const payload = {
         data: {
           function: "0x1::aptos_account::transfer",
           typeArguments: [],
-          functionArguments: [account?.address, 100], // টেস্ট হিসেবে নিজের অ্যাড্রেসেই ১০০ অক্টা পাঠানো
+          functionArguments: [account?.address, 100],
         }
       };
       
       const response = await signAndSubmitTransaction(payload);
       
-      if (response) {
-        alert("Awesome! Transaction submitted successfully to Aptos Blockchain.");
+      if (response && response.hash) {
+        // সফল হলে এলার্টের বদলে লিংক তৈরি হবে
+        setTxHash(response.hash);
         setCode(""); 
       }
     } catch (error) {
-      // এরর মেসেজটি আপডেট করে দিলাম যাতে বুঝতে সুবিধা হয়
-      alert("Please check the Petra Wallet extension in Mises menu to approve!");
+      alert("Please check the Petra Wallet extension to approve!");
     } finally {
       setIsUploading(false);
     }
@@ -143,8 +145,24 @@ function ShelbyVault() {
               }`}
             >
               <UploadCloud className="w-5 h-5" />
-              {isUploading ? "WAITING FOR WALLET..." : "SECURE TO SHELBY"}
+              {isUploading ? "SENDING TO BLOCKCHAIN..." : "SECURE TO SHELBY"}
             </button>
+            
+            {/* ট্রানজ্যাকশন সফল হওয়ার পর এই বক্সটি দেখাবে */}
+            {txHash && (
+              <div className="mt-4 p-4 bg-green-900/30 border border-green-800 rounded flex flex-col items-center gap-2 animate-pulse">
+                <span className="text-green-400 text-sm font-bold">Transaction Successful! 🎉</span>
+                <a 
+                  href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 border-b border-blue-400/50 pb-1"
+                >
+                  View on Aptos Explorer <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+
             {!connected && <p className="text-xs text-red-400 text-center mt-2">Connect wallet to upload</p>}
           </div>
         </div>
@@ -152,3 +170,4 @@ function ShelbyVault() {
     </div>
   );
 }
+
