@@ -1,36 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🔐 Shelby Web3 Vault
 
-## Getting Started
+A professional decentralized asset workshop and secure data vault built on the Aptos Blockchain. This project allows users to securely connect their Web3 wallets and interact with smart contracts on-chain.
 
-First, run the development server:
+## ✨ Key Features
+* **🚀 Web3 Wallet Integration:** Seamless connection with Aptos Petra Wallet.
+* **🔒 Secure Transactions:** Real-time on-chain transaction submission and verification.
+* **💻 Modern UI/UX:** Dark-themed, responsive, and futuristic interface built with Tailwind CSS.
+* **⚡ Live Status:** Real-time network and storage node status monitoring.
+
+## 🌐 Live Demo
+Check out the live project here: [Shelby Web3 Vault](https://shelby-web3-vault.vercel.app/)
+
+## 🛠️ Technology Stack
+* **Frontend:** Next.js, React, Tailwind CSS, Lucide Icons
+* **Blockchain:** Aptos Testnet, Move Smart Contracts, Aptos Wallet Adapter
+* **Deployment:** Vercel
+
+## 🚀 Getting Started (For Developers)
+If you want to run this project locally on your machine, run the following commands:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
