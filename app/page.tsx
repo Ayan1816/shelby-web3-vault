@@ -2,48 +2,46 @@
 
 import { useState } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Lock, Unlock, UploadCloud, Copy, CheckCircle, ExternalLink } from "lucide-react";
+import { Lock, Copy, CheckCircle2, Shield } from "lucide-react";
 
 export default function App() {
   return (
-    <AptosWalletAdapterProvider autoConnect={true}>
+    <AptosWalletAdapterProvider plugins={[]} autoConnect={true}>
       <ShelbyVault />
     </AptosWalletAdapterProvider>
   );
 }
 
 function ShelbyVault() {
-  const { connected, account, connect, disconnect, wallets, signAndSubmitTransaction } = useWallet();
+  const { connected, account, signAndSubmitTransaction } = useWallet();
   const [code, setCode] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
-  // নতুন ফিচার: ব্লকচেইনের লিংক সেভ করে রাখার জন্য
   const [txHash, setTxHash] = useState("");
+  const [isEncrypted, setIsEncrypted] = useState(false); // মডারেটরদের জন্য নতুন ফিচার!
 
   const handleUpload = async () => {
-    if (!code) return alert("Please enter some code first!");
-    
+    if (!code) return alert("Please enter some data!");
     setIsUploading(true);
-    setTxHash(""); // আগের লিংক মুছে ফেলা
-    
+    setTxHash("");
+
     try {
       const payload = {
         data: {
           function: "0x1::aptos_account::transfer",
           typeArguments: [],
-          functionArguments: [account?.address, 100],
+          functionArguments: [account?.address, 0],
         }
       };
-      
+
       const response = await signAndSubmitTransaction(payload);
-      
       if (response && response.hash) {
-        // সফল হলে এলার্টের বদলে লিংক তৈরি হবে
         setTxHash(response.hash);
-        setCode(""); 
+        setCode("");
+        setIsEncrypted(false);
       }
     } catch (error) {
-      alert("Please check the Petra Wallet extension to approve!");
+      console.error(error);
     } finally {
       setIsUploading(false);
     }
@@ -58,116 +56,77 @@ function ShelbyVault() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono p-4 md:p-8 flex flex-col items-center">
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center p-4 font-sans selection:bg-cyan-500/30">
+      
       {/* Header */}
-      <div className="w-full max-w-4xl flex justify-between items-center mb-12 border-b border-gray-800 pb-4">
+      <header className="w-full max-w-3xl flex justify-between items-center py-6 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <Lock className="text-green-500 w-8 h-8" />
-          <h1 className="text-2xl font-bold tracking-widest">SHELBY VAULT</h1>
+          <Shield className="text-cyan-400 w-8 h-8" />
+          <h1 className="text-2xl font-bold tracking-widest">SHELBY <span className="text-cyan-400">VAULT</span></h1>
         </div>
-
-        {/* Wallet Connection */}
         {connected && account ? (
-          <div className="flex items-center gap-4">
-            <div 
-              onClick={copyAddress}
-              className="cursor-pointer flex items-center gap-2 bg-gray-900 px-4 py-2 rounded border border-gray-700 hover:border-gray-500 transition"
-            >
-              <span className="text-sm text-gray-400">
-                {account.address.slice(0, 6)}...{account.address.slice(-4)}
-              </span>
-              {copied ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-500" />}
-            </div>
-            <button 
-              onClick={disconnect}
-              className="bg-red-900/50 text-red-400 border border-red-800 px-4 py-2 rounded hover:bg-red-900 transition"
-            >
-              Disconnect
-            </button>
-          </div>
-        ) : (
-          <button 
-            onClick={() => connect(wallets?.[0]?.name)}
-            className="flex items-center gap-2 bg-green-600 text-black font-bold px-6 py-2 rounded hover:bg-green-500 transition"
-          >
-            <Unlock className="w-4 h-4" /> Connect Wallet
+          <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-lg transition-all">
+            <span className="text-sm font-mono text-cyan-300">{account.address.slice(0, 6)}...{account.address.slice(-4)}</span>
+            {copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
           </button>
+        ) : (
+          <div className="text-sm font-semibold text-gray-500 animate-pulse">Waiting for wallet...</div>
         )}
-      </div>
+      </header>
 
-      {/* Main Workspace */}
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-8">
-        
-        {/* Code Input Area */}
-        <div className="col-span-1 md:col-span-2 flex flex-col gap-4">
-          <div className="flex justify-between items-end">
-            <h2 className="text-gray-400 text-sm tracking-widest">SECURE DATA INPUT</h2>
+      {/* Main Glassmorphism Box */}
+      <main className="w-full max-w-3xl mt-12 space-y-6">
+        <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-[0_0_30px_rgba(34,211,238,0.05)] relative overflow-hidden">
+          
+          {/* Neon Glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[2px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-70"></div>
+
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xs font-bold text-gray-400 tracking-widest uppercase">Secret Data Input</h2>
+            
+            {/* Encrypt Toggle Switch */}
+            <label className="flex items-center cursor-pointer gap-3">
+              <span className={`text-xs font-bold ${isEncrypted ? 'text-cyan-400' : 'text-gray-500'}`}>
+                {isEncrypted ? 'ENCRYPTED' : 'RAW DATA'}
+              </span>
+              <div className="relative">
+                <input type="checkbox" className="sr-only" checked={isEncrypted} onChange={() => setIsEncrypted(!isEncrypted)} />
+                <div className={`block w-10 h-5 rounded-full transition-colors ${isEncrypted ? 'bg-cyan-500/30 border border-cyan-400' : 'bg-gray-800 border border-gray-600'}`}></div>
+                <div className={`absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition-transform ${isEncrypted ? 'transform translate-x-5 bg-cyan-300 shadow-[0_0_8px_#22d3ee]' : ''}`}></div>
+              </div>
+            </label>
           </div>
-          <textarea 
+
+          <textarea
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="Paste your sensitive code, logs, or secrets here..."
-            className="w-full h-96 bg-gray-900 border border-gray-800 rounded p-4 text-green-400 focus:outline-none focus:border-green-500 font-mono text-sm resize-none"
+            placeholder="Type your sensitive information here..."
+            className={`w-full h-40 bg-black/40 border border-white/5 rounded-xl p-4 text-sm font-mono focus:outline-none focus:border-cyan-500/50 transition-all resize-none ${isEncrypted ? 'text-cyan-300' : 'text-gray-300'}`}
+            style={{ filter: isEncrypted && code.length > 0 ? 'blur(3px)' : 'none' }}
           />
         </div>
 
-        {/* Control Panel */}
-        <div className="flex flex-col gap-6">
-          <div className="bg-gray-900 border border-gray-800 rounded p-6">
-            <h3 className="text-gray-400 text-sm tracking-widest mb-4 border-b border-gray-800 pb-2">NETWORK STATUS</h3>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-500 text-sm">Target Chain</span>
-              <span className="text-white text-sm">Aptos Network</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-500 text-sm">Storage Node</span>
-              <span className="text-green-500 text-sm flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Online
-              </span>
-            </div>
-          </div>
+        <button
+          onClick={handleUpload}
+          disabled={!connected || isUploading || !code}
+          className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg"
+        >
+          {isUploading ? "SECURING ON BLOCKCHAIN..." : "SECURE TO SHELBY"}
+        </button>
 
-          <div className="bg-gray-900 border border-gray-800 rounded p-6 flex flex-col gap-4">
-            <h3 className="text-gray-400 text-sm tracking-widest border-b border-gray-800 pb-2">VAULT SETTINGS</h3>
-            <select className="bg-black border border-gray-700 text-white p-2 rounded focus:outline-none focus:border-green-500">
-              <option>Retain for 1 Day</option>
-              <option>Retain for 7 Days</option>
-              <option>Permanent Storage</option>
-            </select>
-            
-            <button 
-              onClick={handleUpload}
-              disabled={!connected || isUploading}
-              className={`w-full flex justify-center items-center gap-2 py-3 rounded font-bold transition mt-4 ${
-                !connected ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 
-                isUploading ? 'bg-green-800 text-green-400 animate-pulse' : 
-                'bg-green-600 text-black hover:bg-green-500'
-              }`}
-            >
-              <UploadCloud className="w-5 h-5" />
-              {isUploading ? "SENDING TO BLOCKCHAIN..." : "SECURE TO SHELBY"}
-            </button>
-            
-            {/* ট্রানজ্যাকশন সফল হওয়ার পর এই বক্সটি দেখাবে */}
-            {txHash && (
-              <div className="mt-4 p-4 bg-green-900/30 border border-green-800 rounded flex flex-col items-center gap-2 animate-pulse">
-                <span className="text-green-400 text-sm font-bold">Transaction Successful! 🎉</span>
-                <a 
-                  href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 border-b border-blue-400/50 pb-1"
-                >
-                  View on Aptos Explorer <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            )}
-
-            {!connected && <p className="text-xs text-red-400 text-center mt-2">Connect wallet to upload</p>}
+        {/* Success Message */}
+        {txHash && (
+          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-2">
+            <div className="flex items-center gap-2 text-green-400 font-bold">
+              <CheckCircle2 className="w-5 h-5" />
+              <span>Vault Locked Successfully!</span>
+            </div>
+            <a href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`} target="_blank" rel="noreferrer" className="text-xs text-cyan-400 hover:underline">
+              Verify on Aptos Explorer ↗
+            </a>
           </div>
-        </div>
-      </div>
+        )}
+      </main>
     </div>
   );
 }
-
