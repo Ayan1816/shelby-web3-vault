@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Copy, CheckCircle2, Shield, LogOut, Wallet, Activity, Database, History, Coins, Key, Lock, Unlock, X } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut, Wallet, Activity, Database, History, Coins, Key, Lock, Unlock, X, FileText, Image as ImageIcon, UploadCloud, File } from "lucide-react";
 
 export default function App() {
   return (
@@ -12,7 +12,7 @@ export default function App() {
   );
 }
 
-// 🔐 সিক্রেট ডেটা এনক্রিপ্ট ও ডিক্রিপ্ট করার ইঞ্জিন
+// 🔐 সিক্রেট ডেটা এনক্রিপ্ট ও ডিক্রিপ্ট ইঞ্জিন
 const encryptMessage = (text: string, password: string) => {
   try {
     const encodedText = encodeURIComponent(text);
@@ -35,27 +35,37 @@ const decryptMessage = (ciphertext: string, password: string) => {
   } catch(e) { return null; }
 };
 
+type VaultRecord = { hash: string, data: string, type: 'text' | 'file', fileName?: string, timestamp: number };
+
 function ShelbyVault() {
   const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
+  const [mounted, setMounted] = useState(false);
+  const [balance, setBalance] = useState<string>("0.00");
+  const [history, setHistory] = useState<VaultRecord[]>([]);
+
+  // 🚀 ইনপুট স্টেটসমূহ
+  const [vaultMode, setVaultMode] = useState<'text' | 'file'>('text');
   const [code, setCode] = useState("");
-  const [secretKey, setSecretKey] = useState(""); // নতুন: পাসওয়ার্ড স্টেট
+  const [secretKey, setSecretKey] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  
-  const [balance, setBalance] = useState<string>("0.00");
-  const [history, setHistory] = useState<{hash: string, data: string}[]>([]);
 
-  // 🚀 ডিক্রিপ্ট মডাল (পপ-আপ) এর স্টেট
+  // 📁 ফাইল আপলোড স্টেট
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileBase64, setFileBase64] = useState<string>("");
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 🔓 ডিক্রিপ্ট স্টেট
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [unlockKey, setUnlockKey] = useState("");
+  const [decryptedRecord, setDecryptedRecord] = useState<VaultRecord | null>(null);
   const [decryptedData, setDecryptedData] = useState<string | null>(null);
   const [unlockError, setUnlockError] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // পেজ লোড হলে লোকাল স্টোরেজ থেকে পুরোনো হিস্ট্রি নিয়ে আসবে
-    const savedHistory = localStorage.getItem("shelby_vault_history");
+    const savedHistory = localStorage.getItem("shelby_vault_history_v2");
     if(savedHistory) setHistory(JSON.parse(savedHistory));
   }, []);
 
@@ -71,9 +81,7 @@ function ShelbyVault() {
           if (data?.data?.coin?.value) {
             setBalance((parseInt(data.data.coin.value) / 100000000).toFixed(4));
           }
-        } catch (error) {
-          console.error(error);
-        }
+        } catch (error) {}
       }
     };
     fetchBalance();
@@ -84,10 +92,23 @@ function ShelbyVault() {
     else alert("Please install Petra Wallet extension!");
   };
 
-  const handleUpload = async () => {
-    if (!code || !secretKey) return alert("Please enter both Data and Secret Key!");
-    setIsUploading(true);
+  const processFile = (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      alert("File is too large! Please select a file under 2MB for this demo.");
+      return;
+    }
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setFileBase64(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
 
+  const handleUpload = async () => {
+    if (!secretKey) return alert("Please set a Secret Password first!");
+    if (vaultMode === 'text' && !code) return alert("Please enter some text data!");
+    if (vaultMode === 'file' && !fileBase64) return alert("Please select a file to upload!");
+
+    setIsUploading(true);
     try {
       const payload = {
         data: {
@@ -99,15 +120,24 @@ function ShelbyVault() {
 
       const response = await signAndSubmitTransaction(payload);
       if (response && response.hash) {
-        // ডেটা এনক্রিপ্ট করে হিস্ট্রিতে সেভ করা হচ্ছে
-        const encryptedData = encryptMessage(code, secretKey);
-        const newRecord = { hash: response.hash, data: encryptedData };
-        const newHistory = [newRecord, ...history];
+        const rawData = vaultMode === 'text' ? code : fileBase64;
+        const encryptedData = encryptMessage(rawData, secretKey);
         
+        const newRecord: VaultRecord = { 
+          hash: response.hash, 
+          data: encryptedData, 
+          type: vaultMode,
+          fileName: vaultMode === 'file' ? selectedFile?.name : undefined,
+          timestamp: Date.now()
+        };
+        
+        const newHistory = [newRecord, ...history];
         setHistory(newHistory);
-        localStorage.setItem("shelby_vault_history", JSON.stringify(newHistory));
+        localStorage.setItem("shelby_vault_history_v2", JSON.stringify(newHistory));
         
         setCode("");
+        setSelectedFile(null);
+        setFileBase64("");
         setSecretKey("");
       }
     } catch (error) {
@@ -123,19 +153,13 @@ function ShelbyVault() {
       const result = decryptMessage(record.data, unlockKey);
       if (result) {
         setDecryptedData(result);
+        setDecryptedRecord(record);
         setUnlockError(false);
       } else {
         setUnlockError(true);
         setDecryptedData(null);
       }
     }
-  };
-
-  const closeUnlockModal = () => {
-    setSelectedHash(null);
-    setUnlockKey("");
-    setDecryptedData(null);
-    setUnlockError(false);
   };
 
   const copyAddress = () => {
@@ -147,7 +171,7 @@ function ShelbyVault() {
   };
 
   if (!mounted) return null;
-  const dataSize = new Blob([code]).size;
+  const payloadSize = vaultMode === 'text' ? new Blob([code]).size : new Blob([fileBase64]).size;
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center p-4 font-sans selection:bg-fuchsia-500/30 pb-20 relative">
@@ -179,9 +203,8 @@ function ShelbyVault() {
               </button>
             </>
           ) : (
-            <button onClick={handleConnect} className="group relative flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 px-8 py-3 rounded-xl font-bold transition-all overflow-hidden shadow-[0_0_20px_rgba(192,38,211,0.4)]">
-              <Wallet className="w-5 h-5" />
-              <span>Connect Wallet</span>
+            <button onClick={handleConnect} className="group relative flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 px-8 py-3 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(192,38,211,0.4)]">
+              <Wallet className="w-5 h-5" /> Connect Wallet
             </button>
           )}
         </div>
@@ -196,19 +219,53 @@ function ShelbyVault() {
             <div className="absolute -inset-0.5 bg-gradient-to-r from-fuchsia-500 to-cyan-500 rounded-2xl opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
             
             <div className="relative bg-[#0a0a0a] rounded-xl p-6">
-              <div className="flex items-center gap-2 text-gray-400 mb-4 border-b border-white/5 pb-4">
-                <Lock className="w-4 h-4 text-fuchsia-400" />
-                <span className="text-xs font-bold tracking-widest uppercase">Secret Vault</span>
+              
+              {/* 🚀 Tabs */}
+              <div className="flex gap-4 mb-6 border-b border-white/5 pb-4">
+                <button onClick={() => setVaultMode('text')} className={`flex items-center gap-2 text-sm font-bold pb-2 transition-colors ${vaultMode === 'text' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                  <FileText className="w-4 h-4" /> Secret Text
+                </button>
+                <button onClick={() => setVaultMode('file')} className={`flex items-center gap-2 text-sm font-bold pb-2 transition-colors ${vaultMode === 'file' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                  <UploadCloud className="w-4 h-4" /> File Vault
+                </button>
               </div>
 
-              <textarea
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Type your highly sensitive data here..."
-                className="w-full h-40 bg-black/60 border border-white/5 rounded-lg p-4 text-sm font-mono focus:outline-none focus:border-fuchsia-500/50 transition-all resize-none text-gray-300"
-              />
+              {/* 📝 Text Mode */}
+              {vaultMode === 'text' ? (
+                <textarea
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="Type your highly sensitive data here..."
+                  className="w-full h-40 bg-black/60 border border-white/5 rounded-lg p-4 text-sm font-mono focus:outline-none focus:border-fuchsia-500/50 transition-all resize-none text-gray-300"
+                />
+              ) : (
+                /* 📁 File Mode */
+                <div 
+                  className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-all ${isDragging ? 'border-fuchsia-500 bg-fuchsia-500/10' : 'border-white/10 bg-black/40 hover:border-white/30'}`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
+                  
+                  {selectedFile ? (
+                    <div className="flex flex-col items-center gap-2 text-center p-4">
+                      {selectedFile.type.startsWith('image/') ? <ImageIcon className="w-8 h-8 text-fuchsia-400" /> : <File className="w-8 h-8 text-fuchsia-400" />}
+                      <span className="text-sm font-bold text-fuchsia-300 truncate max-w-[250px]">{selectedFile.name}</span>
+                      <span className="text-xs text-gray-400">{(selectedFile.size / 1024).toFixed(2)} KB</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-gray-500 cursor-pointer">
+                      <UploadCloud className="w-8 h-8" />
+                      <span className="text-sm font-bold">Drag & Drop or Click to Upload</span>
+                      <span className="text-xs">Max 2MB (Images, PDFs, etc.)</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
-              {/* 🔐 Password Input for Encryption */}
+              {/* 🔐 Password Input */}
               <div className="mt-4 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Key className="h-5 w-5 text-fuchsia-500" />
@@ -225,17 +282,17 @@ function ShelbyVault() {
               <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/5 text-xs text-gray-500">
                 <div className="flex items-center gap-1.5">
                   <Database className="w-3.5 h-3.5 text-cyan-500" />
-                  <span>Payload: <span className="font-mono text-cyan-400">{dataSize} Bytes</span></span>
+                  <span>Payload: <span className="font-mono text-cyan-400">{payloadSize} Bytes</span></span>
                 </div>
-                {dataSize > 0 && <span className="text-fuchsia-500/70 text-[10px]">AES-256 Enabled</span>}
+                {payloadSize > 0 && <span className="text-fuchsia-500/70 text-[10px]">AES-256 Enabled</span>}
               </div>
             </div>
           </div>
 
           <button
             onClick={handleUpload}
-            disabled={!connected || isUploading || !code || !secretKey}
-            className="w-full relative overflow-hidden bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 disabled:opacity-50 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all text-white shadow-xl"
+            disabled={!connected || isUploading || (!code && !fileBase64) || !secretKey}
+            className="w-full relative overflow-hidden bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 disabled:opacity-50 disabled:from-gray-800 disabled:to-gray-800 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all text-white shadow-xl"
           >
             {isUploading ? "ENCRYPTING & SECURING..." : "LOCK IN VAULT"}
           </button>
@@ -246,7 +303,7 @@ function ShelbyVault() {
           <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-5 h-full min-h-[300px]">
             <div className="flex items-center gap-2 mb-6 text-gray-300 border-b border-white/5 pb-4">
               <History className="w-5 h-5 text-cyan-400" />
-              <h3 className="font-bold tracking-wider text-sm uppercase">Encrypted History</h3>
+              <h3 className="font-bold tracking-wider text-sm uppercase">Encrypted Storage</h3>
             </div>
             
             <div className="space-y-3">
@@ -256,12 +313,17 @@ function ShelbyVault() {
                 history.map((record, index) => (
                   <button 
                     key={index} 
-                    onClick={() => setSelectedHash(record.hash)}
+                    onClick={() => { setSelectedHash(record.hash); setUnlockKey(""); setDecryptedData(null); }}
                     className="w-full flex items-center justify-between bg-black/40 border border-white/10 rounded-lg p-3 hover:border-fuchsia-500/50 transition-all group"
                   >
-                    <div className="flex flex-col items-start">
-                      <span className="text-xs font-bold text-gray-300 group-hover:text-white transition-colors">Locked Asset #{history.length - index}</span>
-                      <span className="text-[10px] text-fuchsia-500 font-mono mt-1">{record.hash.slice(0, 10)}...</span>
+                    <div className="flex items-center gap-3">
+                      {record.type === 'file' ? <File className="w-4 h-4 text-cyan-500" /> : <FileText className="w-4 h-4 text-fuchsia-500" />}
+                      <div className="flex flex-col items-start">
+                        <span className="text-xs font-bold text-gray-300 group-hover:text-white truncate max-w-[150px]">
+                          {record.fileName || `Locked Text #${history.length - index}`}
+                        </span>
+                        <span className="text-[10px] text-gray-500 font-mono mt-0.5">{new Date(record.timestamp || Date.now()).toLocaleTimeString()}</span>
+                      </div>
                     </div>
                     <Unlock className="w-4 h-4 text-gray-500 group-hover:text-fuchsia-400 transition-colors" />
                   </button>
@@ -274,13 +336,13 @@ function ShelbyVault() {
 
       {/* 🚀 DECRYPTION MODAL (POP-UP) */}
       {selectedHash && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-md p-6 shadow-[0_0_50px_rgba(192,38,211,0.2)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-lg p-6 shadow-[0_0_50px_rgba(192,38,211,0.2)]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Lock className="w-5 h-5 text-fuchsia-500" /> Unlock Data
+                <Lock className="w-5 h-5 text-fuchsia-500" /> Unlock Vault Asset
               </h3>
-              <button onClick={closeUnlockModal} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+              <button onClick={() => { setSelectedHash(null); setDecryptedData(null); }} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
 
             {!decryptedData ? (
@@ -291,25 +353,39 @@ function ShelbyVault() {
                   value={unlockKey}
                   onChange={(e) => { setUnlockKey(e.target.value); setUnlockError(false); }}
                   placeholder="Enter Password"
-                  className={`w-full bg-black border ${unlockError ? 'border-red-500' : 'border-white/10'} rounded-lg py-3 px-4 focus:outline-none focus:border-fuchsia-500`}
+                  className={`w-full bg-black border ${unlockError ? 'border-red-500' : 'border-white/10'} rounded-lg py-3 px-4 focus:outline-none focus:border-fuchsia-500 text-fuchsia-300`}
                 />
                 {unlockError && <p className="text-xs text-red-500 font-bold">Access Denied: Incorrect Password!</p>}
                 
-                <button onClick={handleUnlock} className="w-full bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-3 rounded-lg mt-2">
+                <button onClick={handleUnlock} className="w-full bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-3 rounded-lg mt-2 transition-colors">
                   Decrypt Asset
                 </button>
               </div>
             ) : (
-              <div className="space-y-4 animate-in zoom-in duration-300">
-                <div className="flex items-center gap-2 text-green-400 mb-2">
+              <div className="space-y-4 animate-in zoom-in duration-300 flex flex-col items-center text-center">
+                <div className="flex items-center gap-2 text-green-400 mb-2 w-full justify-center">
                   <CheckCircle2 className="w-5 h-5" />
                   <span className="font-bold">Decryption Successful</span>
                 </div>
-                <textarea 
-                  readOnly 
-                  value={decryptedData} 
-                  className="w-full h-32 bg-green-500/5 border border-green-500/30 rounded-lg p-3 text-sm font-mono text-green-300 resize-none outline-none"
-                />
+                
+                {decryptedRecord?.type === 'file' ? (
+                  <div className="w-full bg-black/50 border border-white/10 rounded-lg p-4">
+                    {decryptedData.startsWith('data:image/') ? (
+                      <img src={decryptedData} alt="Decrypted" className="max-w-full max-h-[300px] object-contain mx-auto rounded-md mb-4" />
+                    ) : (
+                      <File className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
+                    )}
+                    <a href={decryptedData} download={decryptedRecord.fileName || "decrypted_file"} className="inline-block bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold py-2 px-6 rounded-lg transition-colors">
+                      Download File
+                    </a>
+                  </div>
+                ) : (
+                  <textarea 
+                    readOnly 
+                    value={decryptedData} 
+                    className="w-full h-40 bg-green-500/5 border border-green-500/30 rounded-lg p-3 text-sm font-mono text-green-300 resize-none outline-none"
+                  />
+                )}
               </div>
             )}
           </div>
@@ -318,4 +394,4 @@ function ShelbyVault() {
 
     </div>
   );
-}
+      }
