@@ -42,7 +42,6 @@ function ShelbyVault() {
   const [code, setCode] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  const [isFauceting, setIsFauceting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -63,6 +62,7 @@ function ShelbyVault() {
     return () => clearInterval(ping);
   }, []);
 
+  // 🚀 ১০০% ফিক্সড ব্যালেন্স সিস্টেম (কোডিং এরর বাইপাস)
   const fetchBalance = async () => {
     if (account?.address) {
       try {
@@ -102,16 +102,11 @@ function ShelbyVault() {
     return () => clearInterval(interval);
   }, [account, network]);
 
-  const handleFaucet = async () => {
-    if (!account?.address) return alert("Connect wallet first!");
-    if (network?.name?.toLowerCase() === 'mainnet') return alert("Faucet is for Testnet!");
-    setIsFauceting(true);
-    try {
-      const response = await fetch(`https://faucet.testnet.aptoslabs.com/mint?amount=100000000&address=${account.address}`, { method: 'POST' });
-      if (response.ok) { alert("1 APT Added! Updating balance..."); setTimeout(fetchBalance, 3000); }
-      else window.open("https://aptos.dev/network/faucet", "_blank");
-    } catch (error) { window.open("https://aptos.dev/network/faucet", "_blank"); } 
-    finally { setIsFauceting(false); }
+  // 🚀 অফিসিয়াল Faucet লিংক কানেক্টেড
+  const handleFaucet = () => {
+    if (!account?.address) return alert("Please connect wallet first!");
+    if (network?.name?.toLowerCase() === 'mainnet') return alert("Faucet is only for Testnet!");
+    window.open("https://aptoslabs.com/testnet-faucet", "_blank");
   };
 
   const handleUpload = async () => {
@@ -126,9 +121,15 @@ function ShelbyVault() {
         const newHistory = [newRecord, ...history];
         setHistory(newHistory); localStorage.setItem("shelby_vault_v4", JSON.stringify(newHistory));
         setCode(""); setSelectedFile(null); setFileBase64(""); setSecretKey("");
+        
+        // 🚀 সাকসেস মেসেজ!
+        alert("✅ Data Secured Successfully on Aptos Blockchain!");
         setTimeout(fetchOnChainTx, 2000);
       }
-    } catch (error) { console.error(error); } finally { setIsUploading(false); }
+    } catch (error) { 
+      console.error(error); 
+      alert("❌ Transaction Failed or Rejected by Wallet!");
+    } finally { setIsUploading(false); }
   };
 
   const processFile = (file: File) => {
@@ -165,7 +166,7 @@ function ShelbyVault() {
         <div className="flex flex-wrap items-center gap-3">
           {connected && account ? (
             <>
-              <button onClick={handleFaucet} disabled={isFauceting} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 font-bold text-xs uppercase disabled:opacity-50">{isFauceting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}{isFauceting ? 'Minting' : 'Faucet'}</button>
+              <button onClick={handleFaucet} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 font-bold text-xs uppercase"><Zap className="w-3.5 h-3.5" /> Faucet</button>
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span></div>
               <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg"><span className="text-sm font-mono text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
               <button onClick={disconnect} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400"><LogOut className="w-4 h-4" /></button>
@@ -186,7 +187,7 @@ function ShelbyVault() {
               <button onClick={() => setVaultMode('text')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'text' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500'}`}><FileText className="w-4 h-4" /> Secret Text</button>
               <button onClick={() => setVaultMode('file')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'file' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500'}`}><UploadCloud className="w-4 h-4" /> File Vault</button>
             </div>
-            {vaultMode === 'text' ? <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Type highly sensitive data..." className="w-full h-40 bg-black/60 border border-white/5 rounded-lg p-4 text-sm font-mono text-gray-300 outline-none focus:border-fuchsia-500/50 resize-none" /> : (
+            {vaultMode === 'text' ? <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Type highly sensitive data here..." className="w-full h-40 bg-black/60 border border-white/5 rounded-lg p-4 text-sm font-mono text-gray-300 outline-none focus:border-fuchsia-500/50 resize-none" /> : (
               <div className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center ${isDragging ? 'border-fuchsia-500 bg-fuchsia-500/10' : 'border-white/10 bg-black/40'}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }} onClick={() => fileInputRef.current?.click()}>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
                 {selectedFile ? <div className="text-center"><FileIcon className="w-8 h-8 text-fuchsia-400 mx-auto mb-2" /><span className="text-sm font-bold text-fuchsia-300">{selectedFile.name}</span></div> : <div className="text-center text-gray-500"><UploadCloud className="w-8 h-8 mx-auto mb-2" /><span className="text-sm font-bold">Click to Upload</span></div>}
@@ -198,7 +199,7 @@ function ShelbyVault() {
             </div>
             <div className="flex justify-between mt-4 pt-4 border-t border-white/5 text-xs text-gray-500"><span className="font-mono">Payload: {payloadSize} Bytes</span><span className="text-fuchsia-500/70">AES-256</span></div>
           </div>
-          <button onClick={handleUpload} disabled={!connected || isUploading || (!code && !fileBase64) || !secretKey} className="w-full bg-gradient-to-r from-fuchsia-600 to-cyan-600 disabled:opacity-50 font-bold py-4 rounded-xl text-white">{isUploading ? "SECURING..." : "LOCK IN VAULT"}</button>
+          <button onClick={handleUpload} disabled={!connected || isUploading || (!code && !fileBase64) || !secretKey} className="w-full bg-gradient-to-r from-fuchsia-600 to-cyan-600 disabled:opacity-50 font-bold py-4 rounded-xl text-white">{isUploading ? "SECURING ON BLOCKCHAIN..." : "LOCK IN VAULT"}</button>
         </main>
 
         <aside className="w-full lg:w-96 flex flex-col gap-4">
@@ -210,7 +211,7 @@ function ShelbyVault() {
               {history.length === 0 ? <div className="text-center text-gray-500 py-10">No secured data found.</div> : history.map((rec, i) => (
                 <div key={i} className="bg-black/40 border border-white/10 rounded-lg p-3">
                   <div className="flex justify-between mb-2"><span className="text-[10px] text-green-400 flex items-center gap-1"><Shield className="w-3 h-3"/> Secured</span><span className="text-[10px] text-gray-500">{new Date(rec.timestamp).toLocaleString()}</span></div>
-                  <div className="flex justify-between items-center"><div className="flex flex-col"><span className="text-xs font-bold text-gray-300 truncate w-32">{rec.type === 'file' ? rec.fileName : 'Secret Text'}</span><a href={`https://explorer.aptoslabs.com/txn/${rec.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-[10px] text-cyan-400 hover:underline mt-1">Verify Txn</a></div><button onClick={() => setSelectedHash(rec.hash)} className="bg-fuchsia-600/20 text-fuchsia-400 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button></div>
+                  <div className="flex justify-between items-center"><div className="flex flex-col"><span className="text-xs font-bold text-gray-300 truncate w-32">{rec.type === 'file' ? rec.fileName : 'Secret Text'}</span><a href={`https://explorer.aptoslabs.com/txn/${rec.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-[10px] text-cyan-400 hover:underline mt-1">Verify Txn</a></div><button onClick={() => handleUnlock(rec.hash)} className="bg-fuchsia-600/20 text-fuchsia-400 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button></div>
                 </div>
               ))}
             </div>
