@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Copy, CheckCircle2, Shield, LogOut, Wallet, Activity, Database, History, Coins, Key, Lock, Unlock, X, FileText, Image as ImageIcon, UploadCloud, File, Globe } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut, Wallet, Activity, Database, History as HistoryIcon, Coins, Key, Lock, Unlock, X, FileText, Image as ImageIcon, UploadCloud, File as FileIcon, Globe } from "lucide-react";
 
 export default function App() {
   return (
@@ -76,7 +76,9 @@ function ShelbyVault() {
           const isMainnet = network?.name?.toLowerCase() === 'mainnet';
           const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
           
-          const url = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>?t=${Date.now()}`;
+          // 🚀 ব্রাউজার ক্যাশ এবং URL এনকোডিং বাইপাস
+          const resource = encodeURIComponent("0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
+          const url = `${nodeUrl}/accounts/${account.address}/resource/${resource}?t=${Date.now()}`;
           const response = await fetch(url, { cache: "no-store" });
           
           if (response.ok) {
@@ -292,7 +294,7 @@ function ShelbyVault() {
                   <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
                   {selectedFile ? (
                     <div className="flex flex-col items-center gap-2 text-center p-4">
-                      {selectedFile.type.startsWith('image/') ? <ImageIcon className="w-8 h-8 text-fuchsia-400" /> : <File className="w-8 h-8 text-fuchsia-400" />}
+                      {selectedFile.type.startsWith('image/') ? <ImageIcon className="w-8 h-8 text-fuchsia-400" /> : <FileIcon className="w-8 h-8 text-fuchsia-400" />}
                       <span className="text-sm font-bold text-fuchsia-300 truncate max-w-[250px]">{selectedFile.name}</span>
                     </div>
                   ) : (
@@ -406,8 +408,4 @@ function ShelbyVault() {
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Lock className="w-5 h-5 text-fuchsia-500" /> Unlock Vault Asset
               </h3>
-              <button onClick={() => { setSelectedHash(null); setDecryptedData(null); }} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-
-            {!decryptedData ? (
-          
+              <button onClick={() => { setSelectedHash(null); setDecryptedData(nul
