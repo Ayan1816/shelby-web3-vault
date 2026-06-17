@@ -73,17 +73,15 @@ function ShelbyVault() {
     return () => clearInterval(pingInterval);
   }, []);
 
-  // 🚀 ১০০% ফিক্সড ব্যালেন্স সিস্টেম
   const fetchBalance = async () => {
     if (account?.address) {
       try {
         const isMainnet = network?.name?.toLowerCase() === 'mainnet';
         const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
+        const resourceType = encodeURIComponent("0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
+        const url = `${nodeUrl}/accounts/${account.address}/resource/${resourceType}?t=${Date.now()}`;
         
-        // Exact API path without URL encoding the colons
-        const url = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E?t=${Date.now()}`;
         const response = await fetch(url, { cache: "no-store" });
-        
         if (response.ok) {
           const data = await response.json();
           if (data?.data?.coin?.value) {
@@ -104,7 +102,6 @@ function ShelbyVault() {
     return () => clearInterval(balInterval);
   }, [account, network]);
 
-  // 🚀 রিয়েল ডাইরেক্ট Faucet API
   const handleFaucet = async () => {
     if (!account?.address) return alert("Please connect wallet first!");
     if (network?.name?.toLowerCase() === 'mainnet') return alert("Faucet is only for Testnet!");
@@ -113,7 +110,7 @@ function ShelbyVault() {
     try {
       const response = await fetch(`https://faucet.testnet.aptoslabs.com/mint?amount=100000000&address=${account.address}`, { method: 'POST' });
       if (response.ok) {
-        alert("✅ Success! 1 APT added to your wallet. Balance will update shortly.");
+        alert("Success! 1 APT added to your wallet.");
         setTimeout(fetchBalance, 3000);
       } else {
         window.open("https://aptos.dev/network/faucet", "_blank");
@@ -138,7 +135,6 @@ function ShelbyVault() {
     reader.readAsDataURL(file);
   };
 
-  // 🚀 ডেটা সেভ হওয়ার সাথে সাথে UI আপডেট হবে
   const handleUpload = async () => {
     if (!secretKey) return alert("Please set a Secret Password first!");
     if (vaultMode === 'text' && !code) return alert("Please enter some text data!");
@@ -231,8 +227,7 @@ function ShelbyVault() {
         
         <div className="flex flex-wrap items-center justify-center gap-3">
           {connected && account ? (
-            <>
-              {/* 🚀 REAL FAUCET BUTTON */}
+            <div className="flex flex-wrap items-center gap-3">
               <button 
                 onClick={handleFaucet}
                 disabled={isFauceting}
@@ -253,7 +248,7 @@ function ShelbyVault() {
               <button onClick={disconnect} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-all text-red-400">
                 <LogOut className="w-4 h-4" />
               </button>
-            </>
+            </div>
           ) : (
             <button onClick={handleConnect} className="group relative flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 px-8 py-3 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(192,38,211,0.4)]">
               <Wallet className="w-5 h-5" /> Connect Wallet
@@ -350,7 +345,6 @@ function ShelbyVault() {
           </button>
         </main>
 
-        {/* 🚀 FIXED: MY SECURE VAULT PANEL */}
         <aside className="w-full lg:w-96 flex flex-col gap-4">
           <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-5 h-full min-h-[400px]">
             <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
@@ -363,7 +357,7 @@ function ShelbyVault() {
               </span>
             </div>
             
-            <div className="space-y-3 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+            <div className="space-y-3 overflow-y-auto max-h-[500px] pr-2">
               {history.length === 0 ? (
                 <div className="text-center text-gray-500 text-sm py-10 border border-dashed border-gray-700 rounded-lg">
                   No secured data found.<br/>Lock your first asset!
@@ -410,4 +404,7 @@ function ShelbyVault() {
 
       {selectedHash && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w
+          <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-lg p-6 shadow-[0_0_50px_rgba(192,38,211,0.2)]">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+       
