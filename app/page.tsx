@@ -40,15 +40,17 @@ type OnChainTx = { hash: string, timestamp: number, success: boolean, version: s
 function ShelbyVault() {
   const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
   const [mounted, setMounted] = useState(false);
+  
   const [balance, setBalance] = useState<string>("0.00");
   const [history, setHistory] = useState<VaultRecord[]>([]);
-  const [onChainHistory, setOnChainHistory] = useState<OnChainTx[]>([]); // 🚀 রিয়েল ব্লকচেইন হিস্ট্রি
+  const [onChainHistory, setOnChainHistory] = useState<OnChainTx[]>([]);
 
   const [vaultMode, setVaultMode] = useState<'text' | 'file'>('text');
   const [code, setCode] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileBase64, setFileBase64] = useState<string>("");
@@ -67,59 +69,69 @@ function ShelbyVault() {
     if(savedHistory) setHistory(JSON.parse(savedHistory));
   }, []);
 
-  // 🚀 ১. রিয়েল ব্যালেন্স ফেচার
+  // 🚀 ব্যালেন্স ফিক্সড: Anti-Cache সিস্টেম যুক্ত করা হয়েছে
   useEffect(() => {
     const fetchBalance = async () => {
       if (account?.address) {
         try {
-          const nodeUrl = network?.name?.toLowerCase() === 'mainnet' 
-            ? 'https://fullnode.mainnet.aptoslabs.com/v1' 
-            : 'https://fullnode.testnet.aptoslabs.com/v1';
-          const resourceType = "0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E";
-          const response = await fetch(`${nodeUrl}/accounts/${account.address}/resource/${resourceType}`);
+          const isMainnet = network?.name?.toLowerCase() === 'mainnet';
+          const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
+          
+          // ?t=${Date.now()} ব্যবহার করা হয়েছে যাতে ব্রাউজার পুরানো ডাটা না দেখায়
+          const url = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>?t=${Date.now()}`;
+          const response = await fetch(url, { cache: "no-store" });
+          
           if (response.ok) {
             const data = await response.json();
             if (data?.data?.coin?.value) {
               setBalance((parseInt(data.data.coin.value) / 100000000).toFixed(4));
             }
+          } else {
+            setBalance("0.00");
           }
-        } catch (error) {}
+        } catch (error) {
+          console.error("Balance Error:", error);
+        }
       }
     };
     fetchBalance();
   }, [account, network]);
 
-  // 🚀 ২. রিয়েল ব্লকচেইন ট্রানজেকশন ফেচার (NEW REAL FEATURE)
-  useEffect(() => {
-    const fetchOnChainTransactions = async () => {
-      if (account?.address) {
-        try {
-          const nodeUrl = network?.name?.toLowerCase() === 'mainnet' 
-            ? 'https://fullnode.mainnet.aptoslabs.com/v1' 
-            : 'https://fullnode.testnet.aptoslabs.com/v1';
-          
-          // Aptos ব্লকচেইন থেকে সরাসরি ইউজারের আসল ট্রানজেকশন টানা হচ্ছে
-          const response = await fetch(`${nodeUrl}/accounts/${account.address}/transactions?limit=10`);
-          if (response.ok) {
-            const txns = await response.json();
-            const realTxns = txns.filter((tx: any) => tx.type === 'user_transaction').map((tx: any) => ({
-              hash: tx.hash,
-              timestamp: tx.timestamp ? parseInt(tx.timestamp) / 1000 : Date.now(),
-              success: tx.success,
-              version: tx.version
-            }));
-            setOnChainHistory(realTxns);
-          }
-        } catch (error) {
-          console.error("Failed to fetch real on-chain history", error);
-        }
+  // 🚀 রিয়েল অন-চেইন ট্রানজেকশন ফিক্সড (৫০টি ট্রানজেকশন পর্যন্ত টানবে)
+  const fetchOnChainTransactions = async () => {
+    if (!account?.address) return;
+    setIsLoadingHistory(true);
+    try {
+      const isMainnet = network?.name?.toLowerCase() === 'mainnet';
+      const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
+      
+      const url = `${nodeUrl}/accounts/${account.address}/transactions?limit=50&t=${Date.now()}`;
+      const response = await fetch(url, { cache: "no-store" });
+      
+      if (response.ok) {
+        const txns = await response.json();
+        const realTxns = txns
+          .filter((tx: any) => tx.type === 'user_transaction')
+          .map((tx: any) => ({
+            hash: tx.hash,
+            timestamp: tx.timestamp ? parseInt(tx.timestamp) / 1000 : Date.now(),
+            success: tx.success,
+            version: tx.version
+          }));
+        setOnChainHistory(realTxns);
       }
-    };
-    // প্রতিবার কানেক্ট করলে বা নতুন আপলোড করলে ব্লকচেইন আপডেট হবে
+    } catch (error) {
+      console.error("History Error:", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOnChainTransactions();
-    const interval = setInterval(fetchOnChainTransactions, 10000); // প্রতি ১০ সেকেন্ডে ব্লকচেইন চেক করবে
+    const interval = setInterval(fetchOnChainTransactions, 8000); // প্রতি ৮ সেকেন্ডে লাইভ রিফ্রেশ
     return () => clearInterval(interval);
-  }, [account, network, history]);
+  }, [account, network]);
 
   const handleConnect = () => {
     if (wallets && wallets.length > 0) connect(wallets[0].name);
@@ -127,7 +139,7 @@ function ShelbyVault() {
   };
 
   const processFile = (file: File) => {
-    if (file.size > 2 * 1024 * 1024) return alert("Please select a file under 2MB.");
+    if (file.size > 2 * 1024 * 1024) return alert("File is too large! Limit is 2MB.");
     setSelectedFile(file);
     const reader = new FileReader();
     reader.onload = (e) => setFileBase64(e.target?.result as string);
@@ -145,7 +157,7 @@ function ShelbyVault() {
         data: {
           function: "0x1::aptos_account::transfer",
           typeArguments: [],
-          functionArguments: [account?.address, 0], // নিজের অ্যাড্রেসেই ট্রানজেকশন করে রেকর্ড তৈরি
+          functionArguments: [account?.address, 0],
         }
       };
 
@@ -170,6 +182,9 @@ function ShelbyVault() {
         setSelectedFile(null);
         setFileBase64("");
         setSecretKey("");
+        
+        // আপলোড হওয়ার সাথে সাথেই হিস্ট্রি রিফ্রেশ করবে
+        setTimeout(fetchOnChainTransactions, 2000);
       }
     } catch (error) {
       console.error(error);
@@ -180,8 +195,7 @@ function ShelbyVault() {
 
   const handleUnlock = (hash: string) => {
     const record = history.find(h => h.hash === hash);
-    if (!record) return alert("Data payload not found in this device's secure local vault.");
-    
+    if (!record) return alert("This asset was locked from another device. Cannot decrypt locally!");
     setSelectedHash(hash);
   };
 
@@ -282,13 +296,11 @@ function ShelbyVault() {
                     <div className="flex flex-col items-center gap-2 text-center p-4">
                       {selectedFile.type.startsWith('image/') ? <ImageIcon className="w-8 h-8 text-fuchsia-400" /> : <File className="w-8 h-8 text-fuchsia-400" />}
                       <span className="text-sm font-bold text-fuchsia-300 truncate max-w-[250px]">{selectedFile.name}</span>
-                      <span className="text-xs text-gray-400">{(selectedFile.size / 1024).toFixed(2)} KB</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2 text-gray-500 cursor-pointer">
                       <UploadCloud className="w-8 h-8" />
                       <span className="text-sm font-bold">Drag & Drop or Click to Upload</span>
-                      <span className="text-xs">Max 2MB</span>
                     </div>
                   )}
                 </div>
@@ -320,7 +332,7 @@ function ShelbyVault() {
           <button
             onClick={handleUpload}
             disabled={!connected || isUploading || (!code && !fileBase64) || !secretKey}
-            className="w-full relative overflow-hidden bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 disabled:opacity-50 disabled:from-gray-800 disabled:to-gray-800 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all text-white shadow-xl"
+            className="w-full relative overflow-hidden bg-gradient-to-r from-fuchsia-600 to-cyan-600 hover:from-fuchsia-500 hover:to-cyan-500 disabled:opacity-50 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all text-white shadow-xl"
           >
             {isUploading ? "SECURING ON BLOCKCHAIN..." : "LOCK IN VAULT"}
           </button>
@@ -335,20 +347,22 @@ function ShelbyVault() {
                 <h3 className="font-bold tracking-wider text-sm uppercase">Live On-Chain Txns</h3>
               </div>
               <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded-full border border-cyan-500/30">
-                {network?.name || 'Aptos'} Sync
+                Live Sync
               </span>
             </div>
             
             <div className="space-y-3 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
               {!connected ? (
                 <div className="text-center text-gray-600 text-sm py-10">Connect wallet to see live history.</div>
+              ) : isLoadingHistory && onChainHistory.length === 0 ? (
+                <div className="text-center text-gray-600 text-sm py-10">Fetching your block history...</div>
               ) : onChainHistory.length === 0 ? (
-                <div className="text-center text-gray-600 text-sm py-10">Fetching transactions from blockchain...</div>
+                <div className="text-center text-gray-500 text-sm py-10 border border-dashed border-gray-700 rounded-lg">
+                  No transactions found yet.<br/>Make a transaction to see history!
+                </div>
               ) : (
                 onChainHistory.map((tx, index) => {
-                  // চেক করছি এই ট্রানজেকশনের ডেটা এই ব্রাউজারে সেভ আছে কিনা
                   const isLocal = history.some(h => h.hash === tx.hash);
-                  
                   return (
                     <div key={index} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 hover:border-cyan-500/50 transition-all">
                       <div className="flex justify-between items-start mb-2">
@@ -393,10 +407,4 @@ function ShelbyVault() {
           <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-lg p-6 shadow-[0_0_50px_rgba(192,38,211,0.2)]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Lock className="w-5 h-5 text-fuchsia-500" /> Unlock Vault Asset
-              </h3>
-              <button onClick={() => { setSelectedHash(null); setDecryptedData(null); }} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-
-            {!decryptedData ? (
-                                  
+                <Lock className="w-5 h-5 
