@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Copy, CheckCircle2, Shield, LogOut, Activity } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut, Wallet } from "lucide-react";
 
 export default function App() {
   return (
-    // এখানে autoConnect={false} করে দেওয়া হয়েছে যাতে জোর করে কানেক্ট না হয়
     <AptosWalletAdapterProvider plugins={[]} autoConnect={false}>
       <ShelbyVault />
     </AptosWalletAdapterProvider>
@@ -14,15 +13,25 @@ export default function App() {
 }
 
 function ShelbyVault() {
-  const { connected, account, signAndSubmitTransaction, disconnect, network } = useWallet();
+  const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets } = useWallet();
   const [code, setCode] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [txHash, setTxHash] = useState("");
   const [isEncrypted, setIsEncrypted] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const isMainnet = network?.name?.toLowerCase() === 'mainnet';
-  const networkName = network?.name || 'Disconnected';
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleConnect = () => {
+    if (wallets && wallets.length > 0) {
+      connect(wallets[0].name);
+    } else {
+      alert("Please install Petra Wallet extension in your browser!");
+    }
+  };
 
   const handleUpload = async () => {
     if (!code) return alert("Please enter some data!");
@@ -59,46 +68,48 @@ function ShelbyVault() {
     }
   };
 
+  if (!mounted) return null;
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center p-4 font-sans selection:bg-cyan-500/30">
       
+      {/* Header with Dynamic Buttons */}
       <header className="w-full max-w-3xl flex justify-between items-center py-6 border-b border-white/5">
         <div className="flex items-center gap-3">
           <Shield className="text-cyan-400 w-8 h-8" />
           <h1 className="text-2xl font-bold tracking-widest">SHELBY <span className="text-cyan-400">VAULT</span></h1>
         </div>
         
-        <div className="flex items-center gap-4">
-          {connected && (
-            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border ${isMainnet ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
-              <Activity className="w-4 h-4" />
-              <span className="text-xs font-bold tracking-wider uppercase">{networkName}</span>
-            </div>
-          )}
-
+        <div>
           {connected && account ? (
             <div className="flex items-center gap-2">
               <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg transition-all">
-                <span className="text-sm font-mono text-cyan-300">{account.address.slice(0, 6)}...{account.address.slice(-4)}</span>
+                <span className="text-sm font-mono text-cyan-300">
+                  {account.address?.slice(0, 6)}...{account.address?.slice(-4)}
+                </span>
                 {copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
               </button>
               <button 
-                onClick={() => {
-                  disconnect();
-                  window.location.reload(); // ডিসকানেক্ট হওয়ার পর পেজ রিলোড হবে
-                }} 
-                title="Disconnect Wallet"
-                className="flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 p-2.5 rounded-lg transition-all text-red-400"
+                onClick={disconnect}
+                className="flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 px-3 py-2 rounded-lg transition-all text-red-400 gap-2 shadow-lg"
               >
                 <LogOut className="w-4 h-4" />
+                <span className="text-sm font-bold">Disconnect</span>
               </button>
             </div>
           ) : (
-            <div className="text-sm font-semibold text-gray-500 animate-pulse">Waiting for wallet...</div>
+            <button 
+              onClick={handleConnect}
+              className="flex items-center gap-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 px-4 py-2 rounded-lg transition-all text-green-400 font-bold shadow-[0_0_15px_rgba(34,197,94,0.2)]"
+            >
+              <Wallet className="w-5 h-5" />
+              Connect Wallet
+            </button>
           )}
         </div>
       </header>
 
+      {/* Main Glassmorphism Box */}
       <main className="w-full max-w-3xl mt-12 space-y-6">
         <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-[0_0_30px_rgba(34,211,238,0.05)] relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[2px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-70"></div>
@@ -138,10 +149,10 @@ function ShelbyVault() {
           <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-2 mt-6">
             <div className="flex items-center gap-2 text-green-400 font-bold">
               <CheckCircle2 className="w-5 h-5" />
-              <span>Vault Locked Successfully on {networkName}!</span>
+              <span>Vault Locked Successfully!</span>
             </div>
             <a 
-              href={`https://explorer.aptoslabs.com/txn/${txHash}?network=${network?.name?.toLowerCase() || 'mainnet'}`} 
+              href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`} 
               target="_blank" 
               rel="noreferrer" 
               className="text-xs text-cyan-400 hover:underline"
