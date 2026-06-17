@@ -69,7 +69,6 @@ function ShelbyVault() {
     if(savedHistory) setHistory(JSON.parse(savedHistory));
   }, []);
 
-  // 🚀 ব্যালেন্স ফিক্সড: Anti-Cache সিস্টেম যুক্ত করা হয়েছে
   useEffect(() => {
     const fetchBalance = async () => {
       if (account?.address) {
@@ -77,7 +76,6 @@ function ShelbyVault() {
           const isMainnet = network?.name?.toLowerCase() === 'mainnet';
           const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
           
-          // ?t=${Date.now()} ব্যবহার করা হয়েছে যাতে ব্রাউজার পুরানো ডাটা না দেখায়
           const url = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>?t=${Date.now()}`;
           const response = await fetch(url, { cache: "no-store" });
           
@@ -97,7 +95,6 @@ function ShelbyVault() {
     fetchBalance();
   }, [account, network]);
 
-  // 🚀 রিয়েল অন-চেইন ট্রানজেকশন ফিক্সড (৫০টি ট্রানজেকশন পর্যন্ত টানবে)
   const fetchOnChainTransactions = async () => {
     if (!account?.address) return;
     setIsLoadingHistory(true);
@@ -110,15 +107,17 @@ function ShelbyVault() {
       
       if (response.ok) {
         const txns = await response.json();
-        const realTxns = txns
-          .filter((tx: any) => tx.type === 'user_transaction')
-          .map((tx: any) => ({
-            hash: tx.hash,
-            timestamp: tx.timestamp ? parseInt(tx.timestamp) / 1000 : Date.now(),
-            success: tx.success,
-            version: tx.version
-          }));
-        setOnChainHistory(realTxns);
+        if (Array.isArray(txns)) {
+          const realTxns = txns
+            .filter((tx: any) => tx.type === 'user_transaction')
+            .map((tx: any) => ({
+              hash: tx.hash,
+              timestamp: tx.timestamp ? parseInt(tx.timestamp) / 1000 : Date.now(),
+              success: tx.success,
+              version: tx.version
+            }));
+          setOnChainHistory(realTxns);
+        }
       }
     } catch (error) {
       console.error("History Error:", error);
@@ -129,7 +128,7 @@ function ShelbyVault() {
 
   useEffect(() => {
     fetchOnChainTransactions();
-    const interval = setInterval(fetchOnChainTransactions, 8000); // প্রতি ৮ সেকেন্ডে লাইভ রিফ্রেশ
+    const interval = setInterval(fetchOnChainTransactions, 8000);
     return () => clearInterval(interval);
   }, [account, network]);
 
@@ -183,7 +182,6 @@ function ShelbyVault() {
         setFileBase64("");
         setSecretKey("");
         
-        // আপলোড হওয়ার সাথে সাথেই হিস্ট্রি রিফ্রেশ করবে
         setTimeout(fetchOnChainTransactions, 2000);
       }
     } catch (error) {
@@ -338,7 +336,6 @@ function ShelbyVault() {
           </button>
         </main>
 
-        {/* 🚀 REAL ON-CHAIN HISTORY PANEL */}
         <aside className="w-full lg:w-96 flex flex-col gap-4">
           <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-5 h-full min-h-[400px]">
             <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
@@ -407,4 +404,10 @@ function ShelbyVault() {
           <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-lg p-6 shadow-[0_0_50px_rgba(192,38,211,0.2)]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Lock className="w-5 h-5 
+                <Lock className="w-5 h-5 text-fuchsia-500" /> Unlock Vault Asset
+              </h3>
+              <button onClick={() => { setSelectedHash(null); setDecryptedData(null); }} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            {!decryptedData ? (
+          
