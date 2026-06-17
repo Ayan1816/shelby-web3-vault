@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Lock, Copy, CheckCircle2, Shield } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut } from "lucide-react";
 
 export default function App() {
   return (
@@ -13,12 +13,12 @@ export default function App() {
 }
 
 function ShelbyVault() {
-  const { connected, account, signAndSubmitTransaction } = useWallet();
+  const { connected, account, signAndSubmitTransaction, disconnect } = useWallet();
   const [code, setCode] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [txHash, setTxHash] = useState("");
-  const [isEncrypted, setIsEncrypted] = useState(false); // মডারেটরদের জন্য নতুন ফিচার!
+  const [isEncrypted, setIsEncrypted] = useState(false);
 
   const handleUpload = async () => {
     if (!code) return alert("Please enter some data!");
@@ -64,11 +64,22 @@ function ShelbyVault() {
           <Shield className="text-cyan-400 w-8 h-8" />
           <h1 className="text-2xl font-bold tracking-widest">SHELBY <span className="text-cyan-400">VAULT</span></h1>
         </div>
+        
+        {/* Wallet Connection Status & Disconnect Button */}
         {connected && account ? (
-          <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-lg transition-all">
-            <span className="text-sm font-mono text-cyan-300">{account.address.slice(0, 6)}...{account.address.slice(-4)}</span>
-            {copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg transition-all">
+              <span className="text-sm font-mono text-cyan-300">{account.address.slice(0, 6)}...{account.address.slice(-4)}</span>
+              {copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+            </button>
+            <button 
+              onClick={disconnect} 
+              title="Disconnect Wallet"
+              className="flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 p-2.5 rounded-lg transition-all text-red-400"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         ) : (
           <div className="text-sm font-semibold text-gray-500 animate-pulse">Waiting for wallet...</div>
         )}
@@ -116,7 +127,7 @@ function ShelbyVault() {
 
         {/* Success Message */}
         {txHash && (
-          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-2">
+          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-2 mt-6">
             <div className="flex items-center gap-2 text-green-400 font-bold">
               <CheckCircle2 className="w-5 h-5" />
               <span>Vault Locked Successfully!</span>
