@@ -61,15 +61,14 @@ function ShelbyVault() {
     const ping = setInterval(() => setLatency(Math.floor(Math.random() * 80) + 40), 5000);
     return () => clearInterval(ping);
   }, []);
-
-  // 🚀 ১০০% ফিক্সড ব্যালেন্স সিস্টেম (কোডিং এরর বাইপাস)
+    // 🚀 FIXED: Removed the extra param that caused Aptos Server to block the request
   const fetchBalance = async () => {
     if (account?.address) {
       try {
         const isMainnet = network?.name?.toLowerCase() === 'mainnet';
         const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
-        const url = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E?t=${Date.now()}`;
-        const response = await fetch(url, { cache: "no-store" });
+        const url = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E`;
+        const response = await fetch(url, { cache: "no-store", headers: { "Cache-Control": "no-cache" } });
         if (response.ok) {
           const data = await response.json();
           if (data?.data?.coin?.value) setBalance((parseInt(data.data.coin.value) / 100000000).toFixed(4));
@@ -83,7 +82,7 @@ function ShelbyVault() {
     setIsLoadingHistory(true);
     try {
       const nodeUrl = network?.name?.toLowerCase() === 'mainnet' ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
-      const response = await fetch(`${nodeUrl}/accounts/${account.address}/transactions?limit=50&t=${Date.now()}`, { cache: "no-store" });
+      const response = await fetch(`${nodeUrl}/accounts/${account.address}/transactions?limit=50`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } });
       if (response.ok) {
         const txns = await response.json();
         if (Array.isArray(txns)) {
@@ -102,7 +101,6 @@ function ShelbyVault() {
     return () => clearInterval(interval);
   }, [account, network]);
 
-  // 🚀 অফিসিয়াল Faucet লিংক কানেক্টেড
   const handleFaucet = () => {
     if (!account?.address) return alert("Please connect wallet first!");
     if (network?.name?.toLowerCase() === 'mainnet') return alert("Faucet is only for Testnet!");
@@ -121,15 +119,10 @@ function ShelbyVault() {
         const newHistory = [newRecord, ...history];
         setHistory(newHistory); localStorage.setItem("shelby_vault_v4", JSON.stringify(newHistory));
         setCode(""); setSelectedFile(null); setFileBase64(""); setSecretKey("");
-        
-        // 🚀 সাকসেস মেসেজ!
         alert("✅ Data Secured Successfully on Aptos Blockchain!");
         setTimeout(fetchOnChainTx, 2000);
       }
-    } catch (error) { 
-      console.error(error); 
-      alert("❌ Transaction Failed or Rejected by Wallet!");
-    } finally { setIsUploading(false); }
+    } catch (error) { console.error(error); } finally { setIsUploading(false); }
   };
 
   const processFile = (file: File) => {
@@ -211,7 +204,7 @@ function ShelbyVault() {
               {history.length === 0 ? <div className="text-center text-gray-500 py-10">No secured data found.</div> : history.map((rec, i) => (
                 <div key={i} className="bg-black/40 border border-white/10 rounded-lg p-3">
                   <div className="flex justify-between mb-2"><span className="text-[10px] text-green-400 flex items-center gap-1"><Shield className="w-3 h-3"/> Secured</span><span className="text-[10px] text-gray-500">{new Date(rec.timestamp).toLocaleString()}</span></div>
-                  <div className="flex justify-between items-center"><div className="flex flex-col"><span className="text-xs font-bold text-gray-300 truncate w-32">{rec.type === 'file' ? rec.fileName : 'Secret Text'}</span><a href={`https://explorer.aptoslabs.com/txn/${rec.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-[10px] text-cyan-400 hover:underline mt-1">Verify Txn</a></div><button onClick={() => handleUnlock(rec.hash)} className="bg-fuchsia-600/20 text-fuchsia-400 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button></div>
+                  <div className="flex justify-between items-center"><div className="flex flex-col"><span className="text-xs font-bold text-gray-300 truncate w-32">{rec.type === 'file' ? rec.fileName : 'Secret Text'}</span><a href={`https://explorer.aptoslabs.com/txn/${rec.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-[10px] text-cyan-400 hover:underline mt-1">Verify Txn</a></div><button onClick={() => setSelectedHash(rec.hash)} className="bg-fuchsia-600/20 text-fuchsia-400 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button></div>
                 </div>
               ))}
             </div>
@@ -242,3 +235,5 @@ function ShelbyVault() {
     </div>
   );
 }
+
+  
