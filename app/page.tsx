@@ -61,19 +61,36 @@ function ShelbyVault() {
     const ping = setInterval(() => setLatency(Math.floor(Math.random() * 80) + 40), 5000);
     return () => clearInterval(ping);
   }, []);
-    // 🚀 FIXED: Removed the extra param that caused Aptos Server to block the request
+    // 🚀 আল্টিমেট ব্যালেন্স ফিক্স: সব রিসোর্স এনে ব্যালেন্স বের করা হচ্ছে (ব্র্যাকেট প্রবলেম বাইপাস)
   const fetchBalance = async () => {
     if (account?.address) {
       try {
         const isMainnet = network?.name?.toLowerCase() === 'mainnet';
         const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
-        const url = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E`;
-        const response = await fetch(url, { cache: "no-store", headers: { "Cache-Control": "no-cache" } });
+        
+        // শুধু resources লিংক ব্যবহার করছি, তাই কোনো ব্র্যাকেটের ঝামেলা নেই
+        const url = `${nodeUrl}/accounts/${account.address}/resources`;
+        const response = await fetch(url, { cache: "no-store" });
+        
         if (response.ok) {
-          const data = await response.json();
-          if (data?.data?.coin?.value) setBalance((parseInt(data.data.coin.value) / 100000000).toFixed(4));
-        } else setBalance("0.00");
-      } catch (error) { console.error(error); }
+          const resources = await response.json();
+          // এবার JavaScript দিয়ে আমরা আমাদের প্রয়োজনীয় ব্যালেন্সটা খুঁজে নেব
+          const aptosCoin = resources.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
+          
+          if (aptosCoin && aptosCoin.data?.coin?.value) {
+            setBalance((parseInt(aptosCoin.data.coin.value) / 100000000).toFixed(4));
+          } else {
+            setBalance("0.00");
+          }
+        } else {
+          setBalance("0.00");
+        }
+      } catch (error) { 
+        console.error("Balance Error:", error); 
+        setBalance("0.00");
+      }
+    } else {
+      setBalance("0.00");
     }
   };
 
@@ -235,5 +252,3 @@ function ShelbyVault() {
     </div>
   );
 }
-
-  
