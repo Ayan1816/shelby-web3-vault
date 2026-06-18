@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2 } from "lucide-react";
 
 export default function App() {
   return (
@@ -57,29 +57,31 @@ function ShelbyVault() {
     setMounted(true);
     const savedHistory = localStorage.getItem("shelby_final_vault");
     if(savedHistory) setHistory(JSON.parse(savedHistory));
+    
+    // 🚀 Shareable Link চেকার: কেউ লিংকে ক্লিক করে আসলে অটোমেটিক আনলক স্ক্রিন ওপেন হবে
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const hash = params.get('hash');
+      if (hash) setSelectedHash(hash);
+    }
+
     const ping = setInterval(() => setLatency(connected ? Math.floor(Math.random() * 80) + 40 : 0), 5000);
     return () => clearInterval(ping);
   }, [connected]);
-    // 🚀 ফিক্স ১: Fungible Asset Migration অনুযায়ী নতুন অফিসিয়াল ব্যালেন্স API ব্যবহার
-  const fetchBlockchainData = async () => {
+    const fetchBlockchainData = async () => {
     if (!account?.address) return;
-    
     try {
       const isMainnet = network?.name?.toLowerCase().includes('mainnet');
       const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
-      
       const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
 
-      // নতুন ব্যালেন্স API কল (legacy coin এবং fungible asset উভয়ের জন্যই কাজ করবে)
       const assetType = "0x1::aptos_coin::AptosCoin";
       const balanceUrl = `${nodeUrl}/accounts/${account.address}/balance/${assetType}?_=${Date.now()}`;
       
       let balanceFetched = false;
       const balRes = await fetch(balanceUrl, fetchOptions).catch(() => null);
-      
       if (balRes && balRes.ok) {
         const balData = await balRes.json();
-        // API থেকে পাওয়া ডেটা অনুযায়ী ব্যালেন্স সেট করা
         const rawBalance = balData?.balance || balData; 
         if (rawBalance !== undefined) {
           setBalance((parseInt(rawBalance) / 100000000).toFixed(4));
@@ -87,7 +89,6 @@ function ShelbyVault() {
         }
       }
 
-      // যদি নতুন API ফেইল করে, তবে ব্যাকআপ হিসেবে পুরনো মেথড (Testnet এর জন্য)
       if (!balanceFetched) {
          const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
          const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
@@ -96,12 +97,9 @@ function ShelbyVault() {
              const coinData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
              if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4));
              else setBalance("0.00");
-         } else {
-             setBalance("0.00");
-         }
+         } else { setBalance("0.00"); }
       }
 
-      // অন-চেইন হিস্ট্রি টানা হচ্ছে
       const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
       const txRes = await fetch(txUrl, fetchOptions).catch(() => null);
       if (txRes && txRes.ok) {
@@ -127,13 +125,9 @@ function ShelbyVault() {
     }
   }, [account, network, connected]);
 
-  // 🚀 ফিক্স ২: মেইননেটে Faucet বাটন কাজ করবে না
   const handleFaucet = () => {
     const isMainnet = network?.name?.toLowerCase().includes('mainnet');
-    if (isMainnet) {
-      alert("⚠️ Faucet is NOT available on Mainnet! Please switch your wallet to Testnet or Devnet to get free tokens.");
-      return;
-    }
+    if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
     window.open("https://aptoslabs.com/testnet-faucet", "_blank");
   };
 
@@ -149,10 +143,21 @@ function ShelbyVault() {
         const newHistory = [newRecord, ...history];
         setHistory(newHistory); localStorage.setItem("shelby_final_vault", JSON.stringify(newHistory));
         setCode(""); setSelectedFile(null); setFileBase64(""); setSecretKey("");
-        alert("✅ Transaction Successful & Data Saved!");
+        alert("✅ Vault Locked Successfully!");
         setTimeout(fetchBlockchainData, 2000);
       }
     } catch (error) { alert("❌ Transaction Failed!"); } finally { setIsUploading(false); }
+  };
+
+  // 🚀 শেয়ার বাটন লজিক (নতুন)
+  const handleShare = (rec: VaultRecord) => {
+    if (rec.type === 'text') {
+      const link = `${window.location.origin}?hash=${rec.hash}&data=${encodeURIComponent(rec.data)}`;
+      navigator.clipboard.writeText(link);
+      alert("✅ Shareable Link Copied! Send this link and your password to a friend.");
+    } else {
+      alert("⚠️ File sharing via link will be available in the IPFS update.");
+    }
   };
 
   const processFile = (file: File) => {
@@ -163,17 +168,50 @@ function ShelbyVault() {
     reader.readAsDataURL(file);
   };
 
+  // 🚀 শেয়ারেবল লিংকের ডিক্রিপশন লজিক (নতুন)
   const processUnlock = () => {
-    const record = history.find(h => h.hash === selectedHash);
-    if (record) {
-      const result = decryptMsg(record.data, unlockKey);
-      if (result) { setDecryptedData(result); setDecryptedRecord(record); setUnlockError(false); } 
-      else { setUnlockError(true); setDecryptedData(null); }
+    let targetData = "";
+    let recordInfo = null;
+
+    const params = new URLSearchParams(window.location.search);
+    const urlHash = params.get('hash');
+    const urlData = params.get('data');
+
+    // লিংক থেকে আসলে
+    if (selectedHash === urlHash && urlData) {
+      targetData = decodeURIComponent(urlData);
+      recordInfo = { type: 'text' };
+    } else {
+      // নিজের মেমোরি থেকে আনলে
+      const record = history.find(h => h.hash === selectedHash);
+      if (record) {
+        targetData = record.data;
+        recordInfo = record;
+      }
+    }
+
+    if (targetData) {
+      const result = decryptMsg(targetData, unlockKey);
+      if (result) {
+        setDecryptedData(result);
+        setDecryptedRecord(recordInfo as any);
+        setUnlockError(false);
+      } else {
+        setUnlockError(true);
+        setDecryptedData(null);
+      }
+    } else {
+      alert("❌ Encrypted data not found! (File sharing requires IPFS update)");
     }
   };
 
   const copyAddress = () => {
     if (account?.address) { navigator.clipboard.writeText(account.address); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  };
+
+  const closeUnlockModal = () => {
+    setSelectedHash(null); setDecryptedData(null); setUnlockKey("");
+    if (window.history.pushState) window.history.pushState({}, '', window.location.pathname);
   };
 
   if (!mounted) return null;
@@ -190,8 +228,7 @@ function ShelbyVault() {
         <div className="flex flex-wrap items-center gap-3">
           {connected && account ? (
             <>
-              {/* মেইননেটে Faucet বাটন হলুদ/সতর্ক দেখাবে এবং টেস্টনেটে নরমাল দেখাবে */}
-              <button onClick={handleFaucet} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs uppercase transition-colors ${isMainnet ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20' : 'bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20'}`}>
+              <button onClick={handleFaucet} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs uppercase transition-colors ${isMainnet ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400' : 'bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400'}`}>
                 <Zap className="w-3.5 h-3.5" /> Faucet
               </button>
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span></div>
@@ -236,7 +273,8 @@ function ShelbyVault() {
             <h3 className="font-bold text-sm uppercase flex items-center gap-2 mb-4 border-b border-white/5 pb-4"><Globe className="w-4 h-4 text-cyan-400" /> Live Blockchain History</h3>
             <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
               {!connected ? <div className="text-center text-gray-500 py-10">Connect wallet to view history.</div> : onChainHistory.length === 0 ? <div className="text-center text-gray-500 py-10">No recent transactions.</div> : onChainHistory.map((tx, i) => {
-                const isLocal = history.some(h => h.hash === tx.hash);
+                const localRecord = history.find(h => h.hash === tx.hash);
+                const isLocal = !!localRecord;
                 return (
                   <div key={i} className="bg-black/40 border border-white/10 rounded-lg p-3 hover:border-cyan-500/50">
                     <div className="flex justify-between mb-2">
@@ -244,8 +282,17 @@ function ShelbyVault() {
                       <span className="text-[10px] text-gray-500">{new Date(tx.timestamp).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <a href={`https://explorer.aptoslabs.com/txn/${tx.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-cyan-400 hover:underline truncate w-32">{tx.hash.slice(0,12)}...</a>
-                      {isLocal ? <button onClick={() => setSelectedHash(tx.hash)} className="bg-fuchsia-600/20 text-fuchsia-400 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button> : <span className="text-[10px] text-gray-600 px-2">On-Chain</span>}
+                      <a href={`https://explorer.aptoslabs.com/txn/${tx.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-cyan-400 hover:underline truncate w-24">{tx.hash.slice(0,12)}...</a>
+                      {isLocal ? (
+                        <div className="flex gap-2">
+                          {localRecord?.type === 'text' && (
+                            <button onClick={() => handleShare(localRecord)} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-2 py-1.5 rounded-md text-[10px] font-bold" title="Copy Shareable Link">
+                              <Share2 className="w-3 h-3"/>
+                            </button>
+                          )}
+                          <button onClick={() => setSelectedHash(tx.hash)} className="bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600/40 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button>
+                        </div>
+                      ) : <span className="text-[10px] text-gray-600 px-2">On-Chain</span>}
                     </div>
                   </div>
                 );
@@ -258,7 +305,7 @@ function ShelbyVault() {
       {selectedHash && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
-            <div className="flex justify-between mb-6"><h3 className="font-bold text-white"><Lock className="w-5 h-5 text-fuchsia-500 inline mr-2" /> Unlock Asset</h3><button onClick={() => { setSelectedHash(null); setDecryptedData(null); setUnlockKey(""); }}><X className="text-gray-500 hover:text-white w-5 h-5"/></button></div>
+            <div className="flex justify-between mb-6"><h3 className="font-bold text-white"><Lock className="w-5 h-5 text-fuchsia-500 inline mr-2" /> Unlock Asset</h3><button onClick={closeUnlockModal}><X className="text-gray-500 hover:text-white w-5 h-5"/></button></div>
             {!decryptedData ? (
               <div className="space-y-4">
                 <input type="password" value={unlockKey} onChange={(e) => { setUnlockKey(e.target.value); setUnlockError(false); }} placeholder="Enter Password" className={`w-full bg-black border ${unlockError ? 'border-red-500' : 'border-white/10'} rounded-lg p-3 text-fuchsia-300 outline-none focus:border-fuchsia-500`} />
