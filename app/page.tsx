@@ -58,43 +58,34 @@ function ShelbyVault() {
     setMounted(true);
     const savedHistory = localStorage.getItem("shelby_vault_v5");
     if(savedHistory) setHistory(JSON.parse(savedHistory));
-    const ping = setInterval(() => setLatency(Math.floor(Math.random() * 80) + 40), 5000);
+    const ping = setInterval(() => setLatency(connected ? Math.floor(Math.random() * 80) + 40 : 0), 5000);
     return () => clearInterval(ping);
-  }, []);
-
-  // 🚀 ডাবল-চেক ব্যালেন্স সিস্টেম (মোবাইলের জন্য স্পেশাল)
+  }, [connected]);
+    // 🚀 ব্যালেন্স ফিক্স: নতুন API URL এবং অফিশিয়াল মেথড
   const fetchBalance = async () => {
-    if (!account?.address) return;
+    if (!account?.address) {
+      setBalance("0.00");
+      return;
+    }
     try {
       const netName = network?.name?.toLowerCase() || 'testnet';
-      const nodeUrl = netName.includes('mainnet') ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
+      // 'fullnode' এর বদলে 'api' ব্যবহার করা হয়েছে, যা মোবাইলে ব্লক হয় না
+      const nodeUrl = netName.includes('mainnet') ? 'https://api.mainnet.aptoslabs.com/v1' : 'https://api.testnet.aptoslabs.com/v1';
       
-      // পদ্ধতি ১: ডাইরেক্ট কল
-      const url1 = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E`;
-      let res = await fetch(url1);
+      const resourceType = encodeURIComponent("0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
+      const url = `${nodeUrl}/accounts/${account.address}/resource/${resourceType}?nocache=${Math.random()}`;
       
-      if (res.ok) {
-        const data = await res.json();
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
         if (data?.data?.coin?.value) {
           setBalance((parseInt(data.data.coin.value) / 100000000).toFixed(4));
           return;
         }
       }
-
-      // পদ্ধতি ২: মোবাইল ব্রাউজার ব্লক করলে এই বাইপাস কাজ করবে
-      const url2 = `${nodeUrl}/accounts/${account.address}/resources`;
-      const res2 = await fetch(url2);
-      if (res2.ok) {
-        const allRes = await res2.json();
-        const coinData = allRes.find((r: any) => r.type.includes("0x1::aptos_coin::AptosCoin"));
-        if (coinData?.data?.coin?.value) {
-          setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4));
-          return;
-        }
-      }
       setBalance("0.00");
     } catch (error) { 
-      console.error(error); 
+      console.error("Fetch Error:", error); 
       setBalance("0.00");
     }
   };
@@ -104,8 +95,8 @@ function ShelbyVault() {
     setIsLoadingHistory(true);
     try {
       const netName = network?.name?.toLowerCase() || 'testnet';
-      const nodeUrl = netName.includes('mainnet') ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
-      const response = await fetch(`${nodeUrl}/accounts/${account.address}/transactions?limit=20`);
+      const nodeUrl = netName.includes('mainnet') ? 'https://api.mainnet.aptoslabs.com/v1' : 'https://api.testnet.aptoslabs.com/v1';
+      const response = await fetch(`${nodeUrl}/accounts/${account.address}/transactions?limit=20&nocache=${Math.random()}`);
       if (response.ok) {
         const txns = await response.json();
         if (Array.isArray(txns)) {
@@ -124,6 +115,9 @@ function ShelbyVault() {
       fetchOnChainTx();
       const interval = setInterval(() => { fetchBalance(); fetchOnChainTx(); }, 8000);
       return () => clearInterval(interval);
+    } else {
+      setBalance("0.00");
+      setOnChainHistory([]);
     }
   }, [account, network, connected]);
 
@@ -197,7 +191,13 @@ function ShelbyVault() {
       </header>
 
       <div className="w-full max-w-6xl mt-4 flex flex-wrap justify-between items-center bg-white/[0.02] border border-white/5 rounded-lg px-6 py-3 text-xs font-mono text-gray-400">
-        <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div><span>NODE: {network?.name || 'TESTNET'}</span></div>
+        <div className="flex items-center gap-2">
+          {/* 🚀 FIXED: Dynamic Offline/Online Indicator */}
+          <div className={`w-2 h-2 rounded-full animate-pulse ${connected ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'}`}></div>
+          <span className={connected ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+            {connected ? `NODE: ${network?.name?.toUpperCase() || 'TESTNET'}` : 'OFFLINE'}
+          </span>
+        </div>
         <div className="flex items-center gap-4"><span>LATENCY: <span className="text-cyan-400">{latency}ms</span></span><span>L1 ECOSYSTEM</span></div>
       </div>
 
@@ -263,3 +263,5 @@ function ShelbyVault() {
     </div>
   );
 }
+
+  
