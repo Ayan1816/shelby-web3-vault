@@ -60,7 +60,7 @@ function ShelbyVault() {
     const ping = setInterval(() => setLatency(connected ? Math.floor(Math.random() * 80) + 40 : 0), 5000);
     return () => clearInterval(ping);
   }, [connected]);
-    // 🚀 Cache-Busting Balance Fetcher (Force Live Data)
+    // 🚀 ফিক্স ১: Fungible Asset Migration অনুযায়ী নতুন অফিসিয়াল ব্যালেন্স API ব্যবহার
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     
@@ -68,22 +68,27 @@ function ShelbyVault() {
       const isMainnet = network?.name?.toLowerCase().includes('mainnet');
       const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
       
-      const fetchOptions: RequestInit = {
-        cache: 'no-store', // This forces Next.js to not cache the response
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-      };
+      const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
 
-      // 1. Fetch Live Balance
-      const resUrl = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore%3C0x1::aptos_coin::AptosCoin%3E?_=${Date.now()}`;
-      const res = await fetch(resUrl, fetchOptions).catch(() => null);
+      // নতুন ব্যালেন্স API কল (legacy coin এবং fungible asset উভয়ের জন্যই কাজ করবে)
+      const assetType = "0x1::aptos_coin::AptosCoin";
+      const balanceUrl = `${nodeUrl}/accounts/${account.address}/balance/${assetType}?_=${Date.now()}`;
       
-      if (res && res.ok) {
-        const data = await res.json();
-        if (data?.data?.coin?.value) {
-          setBalance((parseInt(data.data.coin.value) / 100000000).toFixed(4));
+      let balanceFetched = false;
+      const balRes = await fetch(balanceUrl, fetchOptions).catch(() => null);
+      
+      if (balRes && balRes.ok) {
+        const balData = await balRes.json();
+        // API থেকে পাওয়া ডেটা অনুযায়ী ব্যালেন্স সেট করা
+        const rawBalance = balData?.balance || balData; 
+        if (rawBalance !== undefined) {
+          setBalance((parseInt(rawBalance) / 100000000).toFixed(4));
+          balanceFetched = true;
         }
-      } else {
-         // Fallback
+      }
+
+      // যদি নতুন API ফেইল করে, তবে ব্যাকআপ হিসেবে পুরনো মেথড (Testnet এর জন্য)
+      if (!balanceFetched) {
          const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
          const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
          if (fRes && fRes.ok) {
@@ -91,27 +96,24 @@ function ShelbyVault() {
              const coinData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
              if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4));
              else setBalance("0.00");
+         } else {
+             setBalance("0.00");
          }
       }
 
-      // 2. Fetch Live History
+      // অন-চেইন হিস্ট্রি টানা হচ্ছে
       const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
       const txRes = await fetch(txUrl, fetchOptions).catch(() => null);
       if (txRes && txRes.ok) {
         const txns = await txRes.json();
         if (Array.isArray(txns)) {
           const userTxns = txns.filter((tx: any) => tx.type === 'user_transaction').map((tx: any) => ({
-            hash: tx.hash, 
-            timestamp: tx.timestamp ? parseInt(tx.timestamp)/1000 : Date.now(), 
-            success: tx.success, 
-            version: tx.version
+            hash: tx.hash, timestamp: tx.timestamp ? parseInt(tx.timestamp)/1000 : Date.now(), success: tx.success, version: tx.version
           }));
           setOnChainHistory(userTxns);
         }
       }
-    } catch (error) { 
-      console.error("Network Error:", error); 
-    }
+    } catch (error) { console.error("Network Error:", error); }
   };
 
   useEffect(() => {
@@ -125,7 +127,13 @@ function ShelbyVault() {
     }
   }, [account, network, connected]);
 
+  // 🚀 ফিক্স ২: মেইননেটে Faucet বাটন কাজ করবে না
   const handleFaucet = () => {
+    const isMainnet = network?.name?.toLowerCase().includes('mainnet');
+    if (isMainnet) {
+      alert("⚠️ Faucet is NOT available on Mainnet! Please switch your wallet to Testnet or Devnet to get free tokens.");
+      return;
+    }
     window.open("https://aptoslabs.com/testnet-faucet", "_blank");
   };
 
@@ -170,6 +178,7 @@ function ShelbyVault() {
 
   if (!mounted) return null;
   const payloadSize = vaultMode === 'text' ? new Blob([code]).size : new Blob([fileBase64]).size;
+  const isMainnet = network?.name?.toLowerCase().includes('mainnet');
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center p-4 font-sans pb-20">
@@ -181,7 +190,10 @@ function ShelbyVault() {
         <div className="flex flex-wrap items-center gap-3">
           {connected && account ? (
             <>
-              <button onClick={handleFaucet} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 font-bold text-xs uppercase hover:bg-fuchsia-500/20"><Zap className="w-3.5 h-3.5" /> Faucet</button>
+              {/* মেইননেটে Faucet বাটন হলুদ/সতর্ক দেখাবে এবং টেস্টনেটে নরমাল দেখাবে */}
+              <button onClick={handleFaucet} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs uppercase transition-colors ${isMainnet ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20' : 'bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20'}`}>
+                <Zap className="w-3.5 h-3.5" /> Faucet
+              </button>
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span></div>
               <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg"><span className="text-sm font-mono text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
               <button onClick={disconnect} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/20"><LogOut className="w-4 h-4" /></button>
@@ -202,11 +214,11 @@ function ShelbyVault() {
         <main className="flex-1 space-y-6">
           <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-6 relative">
             <div className="flex gap-4 mb-6 border-b border-white/5 pb-4">
-              <button onClick={() => setVaultMode('text')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'text' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500'}`}><FileText className="w-4 h-4" /> Secret Text</button>
-              <button onClick={() => setVaultMode('file')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'file' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500'}`}><UploadCloud className="w-4 h-4" /> File Vault</button>
+              <button onClick={() => setVaultMode('text')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'text' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500 hover:text-gray-300'}`}><FileText className="w-4 h-4" /> Secret Text</button>
+              <button onClick={() => setVaultMode('file')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'file' ? 'text-fuchsia-400 border-b-2 border-fuchsia-400' : 'text-gray-500 hover:text-gray-300'}`}><UploadCloud className="w-4 h-4" /> File Vault</button>
             </div>
             {vaultMode === 'text' ? <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Type highly sensitive data here..." className="w-full h-40 bg-black/60 border border-white/5 rounded-lg p-4 text-sm font-mono text-gray-300 outline-none focus:border-fuchsia-500/50 resize-none" /> : (
-              <div className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer ${isDragging ? 'border-fuchsia-500 bg-fuchsia-500/10' : 'border-white/10 bg-black/40'}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }} onClick={() => fileInputRef.current?.click()}>
+              <div className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer ${isDragging ? 'border-fuchsia-500 bg-fuchsia-500/10' : 'border-white/10 bg-black/40 hover:border-white/30'}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }} onClick={() => fileInputRef.current?.click()}>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])} />
                 {selectedFile ? <div className="text-center"><FileIcon className="w-8 h-8 text-fuchsia-400 mx-auto mb-2" /><span className="text-sm font-bold text-fuchsia-300">{selectedFile.name}</span></div> : <div className="text-center text-gray-500"><UploadCloud className="w-8 h-8 mx-auto mb-2" /><span className="text-sm font-bold">Click to Upload Max 2MB</span></div>}
               </div>
@@ -262,6 +274,7 @@ function ShelbyVault() {
           </div>
         </div>
       )}
+      <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.3); border-radius: 10px; }`}} />
     </div>
   );
 }
