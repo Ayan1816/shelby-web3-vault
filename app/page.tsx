@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2 } from "lucide-react";
 
-// 🔴 পিনাটা JWT কোড এখানে বসান (ডাবল কোটেশনের ভেতরে) 🔴
+// 🔴 পিনাটা JWT কোড এখানে বসানো আছে 🔴
 const PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJhMmRkMzcyNC1iN2Q4LTQ1NWMtYjRhYy0zYjQ1YTg2MTc2ZmEiLCJlbWFpbCI6Im1vaGluMDAyMjBAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImZkMDFmZGNmMDgwOTg5NjNkNTNiIiwic2NvcGVkS2V5U2VjcmV0IjoiZmQ5OWYyZWRhMjVmODgyMWVlNWY4N2M2OGFlMzQxMzE5MWNkZDA5YmE5OWYxZmYwYmJiNDdhNjZjMmQyMGI4NiIsImV4cCI6MTgxMzMxNTA0M30.K8uD-wLsOwZYcwGLJolOmvwEf-rwx2LXaViiwPMuFHQ";
 
 export default function App() {
@@ -60,7 +60,6 @@ function ShelbyVault() {
     const savedHistory = localStorage.getItem("shelby_final_vault");
     if(savedHistory) setHistory(JSON.parse(savedHistory));
     
-    // 🚀 Shareable Link চেকার
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const hash = params.get('hash');
@@ -124,17 +123,16 @@ function ShelbyVault() {
       return () => clearInterval(interval);
     } else { setBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-
-  // 🚀 নতুন Faucet লজিক (অটোমেটিক অ্যাড্রেস বসানোর জন্য)
+    // 🚀 নতুন Faucet লজিক (অটোমেটিক অ্যাড্রেস বসানোর জন্য)
   const handleFaucet = () => {
     const isMainnet = network?.name?.toLowerCase().includes('mainnet');
     if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
     
+    // ভিডিওর মতো Shelby-এর ফসেট লিংক, যেখানে আপনার অ্যাড্রেস অটোমেটিক চলে যাবে
     const addressParam = account?.address ? `?address=${account.address}` : "";
     window.open(`https://docs.shelby.xyz/tools/wallet${addressParam}`, "_blank");
   };
 
-  // 🚀 Pinata-তে ফাইল আপলোড ফাংশন
   const uploadFileToIPFS = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
@@ -150,18 +148,13 @@ function ShelbyVault() {
 
   const handleUpload = async () => {
     if (!secretKey || (!code && !selectedFile)) return alert("Fill all fields & set a password!");
-    if (vaultMode === 'file' && PINATA_JWT === "আপনার_কপি_করা_JWT_কোডটি_এখানে_বসাবেন") {
-        return alert("⚠️ Please add your Pinata JWT in the code to upload files!");
-    }
-
     setIsUploading(true);
     try {
       let rawData = code;
       
       if (vaultMode === 'file' && selectedFile) {
-        // ফাইল সরাসরি IPFS এ যাচ্ছে
         const ipfsHash = await uploadFileToIPFS(selectedFile);
-        rawData = ipfsHash; // ব্লকচেইনে শুধু IPFS হ্যাশ সেভ হবে
+        rawData = ipfsHash; 
       }
 
       const payload = { data: { function: "0x1::aptos_account::transfer", typeArguments: [], functionArguments: [account?.address, 0] } };
@@ -187,7 +180,6 @@ function ShelbyVault() {
     } finally { setIsUploading(false); }
   };
 
-  // 🚀 এখন টেক্সট এবং ছবি— দুটোই শেয়ার করা যাবে!
   const handleShare = (rec: VaultRecord) => {
     const link = `${window.location.origin}?hash=${rec.hash}&data=${encodeURIComponent(rec.data)}&type=${rec.type}&fname=${encodeURIComponent(rec.fileName || "")}`;
     navigator.clipboard.writeText(link);
@@ -215,7 +207,6 @@ function ShelbyVault() {
     if (targetData) {
       const result = decryptMsg(targetData, unlockKey);
       if (result) {
-        // যদি ফাইল হয়, তবে IPFS লিংক বানিয়ে দেব
         if (recordInfo.type === 'file') {
             setDecryptedData(`https://gateway.pinata.cloud/ipfs/${result}`);
         } else {
@@ -308,7 +299,6 @@ function ShelbyVault() {
                       <a href={`https://explorer.aptoslabs.com/txn/${tx.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-cyan-400 hover:underline truncate w-24">{tx.hash.slice(0,12)}...</a>
                       {isLocal ? (
                         <div className="flex gap-2">
-                          {/* 🚀 এখন ফাইল এবং টেক্সট দুটোই শেয়ার করা যাবে */}
                           <button onClick={() => handleShare(localRecord)} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-2 py-1.5 rounded-md text-[10px] font-bold" title="Copy Shareable Link">
                             <Share2 className="w-3 h-3"/>
                           </button>
@@ -326,4 +316,32 @@ function ShelbyVault() {
 
       {selectedHash && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-sm p-6 shadow-2
+          <div className="bg-[#0a0a0a] border border-fuchsia-500/30 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <div className="flex justify-between mb-6"><h3 className="font-bold text-white"><Lock className="w-5 h-5 text-fuchsia-500 inline mr-2" /> Unlock Asset</h3><button onClick={closeUnlockModal}><X className="text-gray-500 hover:text-white w-5 h-5"/></button></div>
+            {!decryptedData ? (
+              <div className="space-y-4">
+                <input type="password" value={unlockKey} onChange={(e) => { setUnlockKey(e.target.value); setUnlockError(false); }} placeholder="Enter Password" className={`w-full bg-black border ${unlockError ? 'border-red-500' : 'border-white/10'} rounded-lg p-3 text-fuchsia-300 outline-none focus:border-fuchsia-500`} />
+                {unlockError && <p className="text-xs text-red-500 font-bold">Incorrect Password!</p>}
+                <button onClick={processUnlock} className="w-full bg-fuchsia-600 text-white font-bold p-3 rounded-lg">Decrypt</button>
+              </div>
+            ) : (
+              <div className="text-center space-y-4">
+                <span className="text-green-400 font-bold flex justify-center items-center gap-2"><CheckCircle2 className="w-5 h-5"/> Success</span>
+                {decryptedRecord?.type === 'file' ? (
+                    <div className="bg-black/50 p-4 rounded-lg">
+                        <img src={decryptedData} className="max-h-[200px] mx-auto mb-4 rounded" onError={(e) => { e.currentTarget.style.display='none'; document.getElementById('fallback-icon')?.classList.remove('hidden'); }} />
+                        <FileIcon id="fallback-icon" className="w-12 h-12 text-cyan-400 mx-auto mb-4 hidden"/>
+                        <a href={decryptedData} target="_blank" rel="noreferrer" download={decryptedRecord.fileName || "file"} className="bg-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-sm inline-block">Download IPFS File</a>
+                    </div>
+                ) : (
+                    <textarea readOnly value={decryptedData} className="w-full h-32 bg-green-500/10 border border-green-500/30 text-green-300 p-3 rounded-lg outline-none" />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.3); border-radius: 10px; }`}} />
+    </div>
+  );
+}
