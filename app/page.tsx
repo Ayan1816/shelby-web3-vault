@@ -83,7 +83,8 @@ function ShelbyVault() {
               if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4));
               else setBalance("0.00");
           }
-          const shelbyData = allData.find((r: any) => r.type.toLowerCase().includes("shelby"));
+          
+          const shelbyData = allData.find((r: any) => r.type.startsWith("0x1::coin::CoinStore<") && r.type.toLowerCase().includes("shelby"));
           if (shelbyData?.data?.coin?.value) {
               setShelbyBalance((parseInt(shelbyData.data.coin.value) / 100000000).toFixed(2));
           } else { setShelbyBalance("0.00"); }
@@ -112,24 +113,27 @@ function ShelbyVault() {
       return () => clearInterval(interval);
     } else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-    const handleFaucet = () => {
+    // 🚀 আপনার দেওয়া লিংক অনুযায়ী ফসেট বাটন আপডেট করা হলো
+  const handleFaucet = (type: 'apt' | 'shelby') => {
     const isMainnet = network?.name?.toLowerCase().includes('mainnet');
     if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
     
     if (account?.address) {
         navigator.clipboard.writeText(account.address);
-        alert("✅ Full Wallet Address Copied! Please paste it in the Shelby Faucet form.");
+        alert(`✅ Full Wallet Address Copied! Please paste it in the ${type.toUpperCase()} Faucet form.`);
     }
-    window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
+    
+    if (type === 'apt') {
+        window.open("https://aptos.dev/network/faucet", "_blank");
+    } else {
+        window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
+    }
   };
 
   const uploadFileToIPFS = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
     if (!res.ok) throw new Error("IPFS Upload Failed");
     const data = await res.json();
     return data.IpfsHash;
@@ -204,9 +208,14 @@ function ShelbyVault() {
         <div className="flex flex-wrap items-center gap-3">
           {connected && account ? (
             <>
-              <button onClick={handleFaucet} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs uppercase transition-colors ${isMainnet ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400' : 'bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400'}`}>
-                <Zap className="w-3.5 h-3.5" /> Faucet
+              {/* 🚀 এখানে ২টি আলাদা ফসেট বাটন দেওয়া হলো */}
+              <button onClick={() => handleFaucet('apt')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-[10px] sm:text-xs uppercase transition-colors bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20">
+                <Zap className="w-3.5 h-3.5" /> APT Faucet
               </button>
+              <button onClick={() => handleFaucet('shelby')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-[10px] sm:text-xs uppercase transition-colors bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20">
+                <Zap className="w-3.5 h-3.5" /> S-USD Faucet
+              </button>
+
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
                 <Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span>
               </div>
