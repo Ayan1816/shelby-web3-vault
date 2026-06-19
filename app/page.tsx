@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, DollarSign } from "lucide-react";
 
-// 🔴 পিনাটা JWT কোড এখানে বসানো আছে 🔴
 const PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJhMmRkMzcyNC1iN2Q4LTQ1NWMtYjRhYy0zYjQ1YTg2MTc2ZmEiLCJlbWFpbCI6Im1vaGluMDAyMjBAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImZkMDFmZGNmMDgwOTg5NjNkNTNiIiwic2NvcGVkS2V5U2VjcmV0IjoiZmQ5OWYyZWRhMjVmODgyMWVlNWY4N2M2OGFlMzQxMzE5MWNkZDA5YmE5OWYxZmYwYmJiNDdhNjZjMmQyMGI4NiIsImV4cCI6MTgxMzMxNTA0M30.K8uD-wLsOwZYcwGLJolOmvwEf-rwx2LXaViiwPMuFHQ";
 
 export default function App() {
@@ -52,57 +51,61 @@ function ShelbyVault() {
       const hash = params.get('hash');
       if (hash) setSelectedHash(hash);
     }
-  }, []);
-
-  // 🚀 ল্যাটেন্সি ট্র্যাকার ফিক্স করা হয়েছে
-  useEffect(() => {
-    if (connected) { setLatency(Math.floor(Math.random() * 80) + 40); }
     const ping = setInterval(() => setLatency(connected ? Math.floor(Math.random() * 80) + 40 : 0), 5000);
     return () => clearInterval(ping);
   }, [connected]);
 
-  // 🚀 ব্যালেন্স ফেচ করার একদম সলিড লজিক
+  // 🚀 আগের ১০০% কাজ করা অরিজিনাল ব্যালেন্স লজিক + ShelbyUSD
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
       const isMainnet = network?.name?.toLowerCase().includes('mainnet');
       const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
+      const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
 
-      // ১. APT ব্যালেন্স সরাসরি ফেচ করা
-      try {
-        const aptRes = await fetch(`${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>`);
-        if (aptRes.ok) {
-          const aptData = await aptRes.json();
-          setBalance((parseInt(aptData.data.coin.value) / 100000000).toFixed(4));
-        } else { setBalance("0.00"); }
-      } catch (e) { setBalance("0.00"); }
-
-      // ২. ShelbyUSD স্ক্যান করা
-      try {
-        const res = await fetch(`${nodeUrl}/accounts/${account.address}/resources?limit=999`);
-        if (res.ok) {
-          const allData = await res.json();
-          const shelbyResource = allData.find((r: any) => r.type.toLowerCase().includes("shelby"));
-          if (shelbyResource && shelbyResource.data?.coin?.value) {
-              setShelbyBalance((parseInt(shelbyResource.data.coin.value) / 100000000).toFixed(2));
-          } else { setShelbyBalance("0.00"); }
+      const assetType = "0x1::aptos_coin::AptosCoin";
+      const balanceUrl = `${nodeUrl}/accounts/${account.address}/balance/${assetType}?_=${Date.now()}`;
+      
+      let balanceFetched = false;
+      const balRes = await fetch(balanceUrl, fetchOptions).catch(() => null);
+      if (balRes && balRes.ok) {
+        const balData = await balRes.json();
+        const rawBalance = balData?.balance || balData; 
+        if (rawBalance !== undefined) {
+          setBalance((parseInt(rawBalance) / 100000000).toFixed(4));
+          balanceFetched = true;
         }
-      } catch (e) { setShelbyBalance("0.00"); }
+      }
 
-      // ৩. অন-চেইন হিস্ট্রি
-      try {
-        const txRes = await fetch(`${nodeUrl}/accounts/${account.address}/transactions?limit=20`);
-        if (txRes.ok) {
-          const txns = await txRes.json();
-          if (Array.isArray(txns)) {
-            const userTxns = txns.filter((tx: any) => tx.type === 'user_transaction').map((tx: any) => ({
-              hash: tx.hash, timestamp: tx.timestamp ? parseInt(tx.timestamp)/1000 : Date.now(), success: tx.success, version: tx.version
-            }));
-            setOnChainHistory(userTxns);
+      const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
+      const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
+      if (fRes && fRes.ok) {
+          const allData = await fRes.json();
+          if (!balanceFetched) {
+              const coinData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
+              if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4));
+              else setBalance("0.00");
           }
-        }
-      } catch (e) {}
+          // ShelbyUSD Scan
+          const shelbyData = allData.find((r: any) => r.type.toLowerCase().includes("shelby"));
+          if (shelbyData?.data?.coin?.value) {
+              setShelbyBalance((parseInt(shelbyData.data.coin.value) / 100000000).toFixed(2));
+          } else { setShelbyBalance("0.00"); }
+      } else {
+          if (!balanceFetched) setBalance("0.00");
+      }
 
+      const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
+      const txRes = await fetch(txUrl, fetchOptions).catch(() => null);
+      if (txRes && txRes.ok) {
+        const txns = await txRes.json();
+        if (Array.isArray(txns)) {
+          const userTxns = txns.filter((tx: any) => tx.type === 'user_transaction').map((tx: any) => ({
+            hash: tx.hash, timestamp: tx.timestamp ? parseInt(tx.timestamp)/1000 : Date.now(), success: tx.success, version: tx.version
+          }));
+          setOnChainHistory(userTxns);
+        }
+      }
     } catch (error) { console.error("Network Error:", error); }
   };
 
