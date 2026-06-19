@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2 } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, DollarSign } from "lucide-react";
 
 // 🔴 পিনাটা JWT কোড এখানে বসানো আছে 🔴
 const PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJhMmRkMzcyNC1iN2Q4LTQ1NWMtYjRhYy0zYjQ1YTg2MTc2ZmEiLCJlbWFpbCI6Im1vaGluMDAyMjBAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImZkMDFmZGNmMDgwOTg5NjNkNTNiIiwic2NvcGVkS2V5U2VjcmV0IjoiZmQ5OWYyZWRhMjVmODgyMWVlNWY4N2M2OGFlMzQxMzE5MWNkZDA5YmE5OWYxZmYwYmJiNDdhNjZjMmQyMGI4NiIsImV4cCI6MTgxMzMxNTA0M30.K8uD-wLsOwZYcwGLJolOmvwEf-rwx2LXaViiwPMuFHQ";
@@ -37,7 +37,11 @@ type OnChainTx = { hash: string, timestamp: number, success: boolean, version: s
 function ShelbyVault() {
   const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
   const [mounted, setMounted] = useState(false);
+  
+  // 🚀 ব্যালেন্সের জন্য নতুন স্টেট
   const [balance, setBalance] = useState<string>("0.00");
+  const [shelbyBalance, setShelbyBalance] = useState<string>("0.00");
+  
   const [history, setHistory] = useState<VaultRecord[]>([]);
   const [onChainHistory, setOnChainHistory] = useState<OnChainTx[]>([]);
   const [vaultMode, setVaultMode] = useState<'text' | 'file'>('text');
@@ -70,6 +74,7 @@ function ShelbyVault() {
     return () => clearInterval(ping);
   }, [connected]);
 
+  // 🚀 স্মার্ট ব্যালেন্স ডিটেক্টর (অটোমেটিক ShelbyUSD খুঁজবে)
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
@@ -77,29 +82,23 @@ function ShelbyVault() {
       const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
       const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
 
-      const assetType = "0x1::aptos_coin::AptosCoin";
-      const balanceUrl = `${nodeUrl}/accounts/${account.address}/balance/${assetType}?_=${Date.now()}`;
-      
-      let balanceFetched = false;
-      const balRes = await fetch(balanceUrl, fetchOptions).catch(() => null);
-      if (balRes && balRes.ok) {
-        const balData = await balRes.json();
-        const rawBalance = balData?.balance || balData; 
-        if (rawBalance !== undefined) {
-          setBalance((parseInt(rawBalance) / 100000000).toFixed(4));
-          balanceFetched = true;
-        }
-      }
+      const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
+      const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
+      if (fRes && fRes.ok) {
+          const allData = await fRes.json();
+          
+          // APT ব্যালেন্স চেক
+          const aptData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
+          if (aptData?.data?.coin?.value) setBalance((parseInt(aptData.data.coin.value) / 100000000).toFixed(4));
+          else setBalance("0.00");
 
-      if (!balanceFetched) {
-         const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
-         const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
-         if (fRes && fRes.ok) {
-             const allData = await fRes.json();
-             const coinData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
-             if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4));
-             else setBalance("0.00");
-         } else { setBalance("0.00"); }
+          // ShelbyUSD ব্যালেন্স চেক
+          const shelbyData = allData.find((r: any) => r.type.toLowerCase().includes("shelby"));
+          if (shelbyData?.data?.coin?.value) {
+              setShelbyBalance((parseInt(shelbyData.data.coin.value) / 100000000).toFixed(2));
+          } else {
+              setShelbyBalance("0.00");
+          }
       }
 
       const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
@@ -121,14 +120,11 @@ function ShelbyVault() {
       fetchBlockchainData();
       const interval = setInterval(fetchBlockchainData, 5000);
       return () => clearInterval(interval);
-    } else { setBalance("0.00"); setOnChainHistory([]); }
+    } else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-    // 🚀 নতুন Faucet লজিক (আপনার দেওয়া সঠিক লিংক)
-  const handleFaucet = () => {
+    const handleFaucet = () => {
     const isMainnet = network?.name?.toLowerCase().includes('mainnet');
     if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
-    
-    // আপনার দেওয়া সঠিক ফসেট লিংকটি এখানে বসানো হয়েছে
     window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
   };
 
@@ -242,7 +238,15 @@ function ShelbyVault() {
               <button onClick={handleFaucet} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs uppercase transition-colors ${isMainnet ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400' : 'bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400'}`}>
                 <Zap className="w-3.5 h-3.5" /> Faucet
               </button>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span></div>
+              
+              {/* 🚀 APT এবং ShelbyUSD দুটো ব্যালেন্স পাশাপাশি দেখাবে */}
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
+                <Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <DollarSign className="w-4 h-4" /><span className="text-sm font-bold">{shelbyBalance} S-USD</span>
+              </div>
+
               <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg"><span className="text-sm font-mono text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
               <button onClick={disconnect} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/20"><LogOut className="w-4 h-4" /></button>
             </>
