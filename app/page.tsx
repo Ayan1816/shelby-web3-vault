@@ -123,14 +123,13 @@ function ShelbyVault() {
       return () => clearInterval(interval);
     } else { setBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-    // 🚀 নতুন Faucet লজিক (অটোমেটিক অ্যাড্রেস বসানোর জন্য)
+    // 🚀 নতুন Faucet লজিক (আপনার দেওয়া সঠিক লিংক)
   const handleFaucet = () => {
     const isMainnet = network?.name?.toLowerCase().includes('mainnet');
     if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
     
-    // ভিডিওর মতো Shelby-এর ফসেট লিংক, যেখানে আপনার অ্যাড্রেস অটোমেটিক চলে যাবে
-    const addressParam = account?.address ? `?address=${account.address}` : "";
-    window.open(`https://docs.shelby.xyz/tools/wallet${addressParam}`, "_blank");
+    // আপনার দেওয়া সঠিক ফসেট লিংকটি এখানে বসানো হয়েছে
+    window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
   };
 
   const uploadFileToIPFS = async (file: File) => {
