@@ -15,21 +15,8 @@ export default function App() {
   );
 }
 
-const encryptMsg = (t: string, p: string) => {
-  try {
-    const e = encodeURIComponent(t); let r = '';
-    for(let i=0; i<e.length; i++) r += String.fromCharCode(e.charCodeAt(i) ^ p.charCodeAt(i % p.length));
-    return btoa(r);
-  } catch(err) { return ""; }
-};
-
-const decryptMsg = (c: string, p: string) => {
-  try {
-    let r = atob(c), res = '';
-    for(let i=0; i<r.length; i++) res += String.fromCharCode(r.charCodeAt(i) ^ p.charCodeAt(i % p.length));
-    return decodeURIComponent(res);
-  } catch(err) { return null; }
-};
+const encryptMsg = (t: string, p: string) => { try { const e = encodeURIComponent(t); let r = ''; for(let i=0; i<e.length; i++) r += String.fromCharCode(e.charCodeAt(i) ^ p.charCodeAt(i % p.length)); return btoa(r); } catch(err) { return ""; } };
+const decryptMsg = (c: string, p: string) => { try { let r = atob(c), res = ''; for(let i=0; i<r.length; i++) res += String.fromCharCode(r.charCodeAt(i) ^ p.charCodeAt(i % p.length)); return decodeURIComponent(res); } catch(err) { return null; } };
 
 type VaultRecord = { hash: string, data: string, type: 'text'|'file', fileName?: string, timestamp: number };
 type OnChainTx = { hash: string, timestamp: number, success: boolean, version: string };
@@ -37,11 +24,8 @@ type OnChainTx = { hash: string, timestamp: number, success: boolean, version: s
 function ShelbyVault() {
   const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
   const [mounted, setMounted] = useState(false);
-  
-  // 🚀 ব্যালেন্সের জন্য নতুন স্টেট
   const [balance, setBalance] = useState<string>("0.00");
   const [shelbyBalance, setShelbyBalance] = useState<string>("0.00");
-  
   const [history, setHistory] = useState<VaultRecord[]>([]);
   const [onChainHistory, setOnChainHistory] = useState<OnChainTx[]>([]);
   const [vaultMode, setVaultMode] = useState<'text' | 'file'>('text');
@@ -63,55 +47,62 @@ function ShelbyVault() {
     setMounted(true);
     const savedHistory = localStorage.getItem("shelby_final_vault");
     if(savedHistory) setHistory(JSON.parse(savedHistory));
-    
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const hash = params.get('hash');
       if (hash) setSelectedHash(hash);
     }
+  }, []);
 
+  // 🚀 ল্যাটেন্সি ট্র্যাকার ফিক্স করা হয়েছে
+  useEffect(() => {
+    if (connected) { setLatency(Math.floor(Math.random() * 80) + 40); }
     const ping = setInterval(() => setLatency(connected ? Math.floor(Math.random() * 80) + 40 : 0), 5000);
     return () => clearInterval(ping);
   }, [connected]);
 
-  // 🚀 স্মার্ট ব্যালেন্স ডিটেক্টর (অটোমেটিক ShelbyUSD খুঁজবে)
+  // 🚀 ব্যালেন্স ফেচ করার একদম সলিড লজিক
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
       const isMainnet = network?.name?.toLowerCase().includes('mainnet');
       const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
-      const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
 
-      const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
-      const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
-      if (fRes && fRes.ok) {
-          const allData = await fRes.json();
-          
-          // APT ব্যালেন্স চেক
-          const aptData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
-          if (aptData?.data?.coin?.value) setBalance((parseInt(aptData.data.coin.value) / 100000000).toFixed(4));
-          else setBalance("0.00");
+      // ১. APT ব্যালেন্স সরাসরি ফেচ করা
+      try {
+        const aptRes = await fetch(`${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>`);
+        if (aptRes.ok) {
+          const aptData = await aptRes.json();
+          setBalance((parseInt(aptData.data.coin.value) / 100000000).toFixed(4));
+        } else { setBalance("0.00"); }
+      } catch (e) { setBalance("0.00"); }
 
-          // ShelbyUSD ব্যালেন্স চেক
-          const shelbyData = allData.find((r: any) => r.type.toLowerCase().includes("shelby"));
-          if (shelbyData?.data?.coin?.value) {
-              setShelbyBalance((parseInt(shelbyData.data.coin.value) / 100000000).toFixed(2));
-          } else {
-              setShelbyBalance("0.00");
-          }
-      }
-
-      const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
-      const txRes = await fetch(txUrl, fetchOptions).catch(() => null);
-      if (txRes && txRes.ok) {
-        const txns = await txRes.json();
-        if (Array.isArray(txns)) {
-          const userTxns = txns.filter((tx: any) => tx.type === 'user_transaction').map((tx: any) => ({
-            hash: tx.hash, timestamp: tx.timestamp ? parseInt(tx.timestamp)/1000 : Date.now(), success: tx.success, version: tx.version
-          }));
-          setOnChainHistory(userTxns);
+      // ২. ShelbyUSD স্ক্যান করা
+      try {
+        const res = await fetch(`${nodeUrl}/accounts/${account.address}/resources?limit=999`);
+        if (res.ok) {
+          const allData = await res.json();
+          const shelbyResource = allData.find((r: any) => r.type.toLowerCase().includes("shelby"));
+          if (shelbyResource && shelbyResource.data?.coin?.value) {
+              setShelbyBalance((parseInt(shelbyResource.data.coin.value) / 100000000).toFixed(2));
+          } else { setShelbyBalance("0.00"); }
         }
-      }
+      } catch (e) { setShelbyBalance("0.00"); }
+
+      // ৩. অন-চেইন হিস্ট্রি
+      try {
+        const txRes = await fetch(`${nodeUrl}/accounts/${account.address}/transactions?limit=20`);
+        if (txRes.ok) {
+          const txns = await txRes.json();
+          if (Array.isArray(txns)) {
+            const userTxns = txns.filter((tx: any) => tx.type === 'user_transaction').map((tx: any) => ({
+              hash: tx.hash, timestamp: tx.timestamp ? parseInt(tx.timestamp)/1000 : Date.now(), success: tx.success, version: tx.version
+            }));
+            setOnChainHistory(userTxns);
+          }
+        }
+      } catch (e) {}
+
     } catch (error) { console.error("Network Error:", error); }
   };
 
@@ -239,7 +230,6 @@ function ShelbyVault() {
                 <Zap className="w-3.5 h-3.5" /> Faucet
               </button>
               
-              {/* 🚀 APT এবং ShelbyUSD দুটো ব্যালেন্স পাশাপাশি দেখাবে */}
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
                 <Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span>
               </div>
