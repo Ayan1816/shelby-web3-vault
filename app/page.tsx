@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, DollarSign } from "lucide-react";
 
-const PINATA_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJhMmRkMzcyNC1iN2Q4LTQ1NWMtYjRhYy0zYjQ1YTg2MTc2ZmEiLCJlbWFpbCI6Im1vaGluMDAyMjBAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImZkMDFmZGNmMDgwOTg5NjNkNTNiIiwic2NvcGVkS2V5U2VjcmV0IjoiZmQ5OWYyZWRhMjVmODgyMWVlNWY4N2M2OGFlMzQxMzE5MWNkZDA5YmE5OWYxZmYwYmJiNDdhNjZjMmQyMGI4NiIsImV4cCI6MTgxMzMxNTA0M30.K8uD-wLsOwZYcwGLJolOmvwEf-rwx2LXaViiwPMuFHQ";
-
 export default function App() {
   return (
     <AptosWalletAdapterProvider plugins={[]} autoConnect={false}>
@@ -55,7 +53,6 @@ function ShelbyVault() {
     return () => clearInterval(ping);
   }, [connected]);
 
-  // 🚀 আগের ১০০% কাজ করা অরিজিনাল ব্যালেন্স লজিক + ShelbyUSD
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
@@ -86,7 +83,6 @@ function ShelbyVault() {
               if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4));
               else setBalance("0.00");
           }
-          // ShelbyUSD Scan
           const shelbyData = allData.find((r: any) => r.type.toLowerCase().includes("shelby"));
           if (shelbyData?.data?.coin?.value) {
               setShelbyBalance((parseInt(shelbyData.data.coin.value) / 100000000).toFixed(2));
@@ -119,15 +115,19 @@ function ShelbyVault() {
     const handleFaucet = () => {
     const isMainnet = network?.name?.toLowerCase().includes('mainnet');
     if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
+    
+    if (account?.address) {
+        navigator.clipboard.writeText(account.address);
+        alert("✅ Full Wallet Address Copied! Please paste it in the Shelby Faucet form.");
+    }
     window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
   };
 
   const uploadFileToIPFS = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    const res = await fetch("/api/upload", {
       method: "POST",
-      headers: { Authorization: `Bearer ${PINATA_JWT}` },
       body: formData,
     });
     if (!res.ok) throw new Error("IPFS Upload Failed");
@@ -140,23 +140,15 @@ function ShelbyVault() {
     setIsUploading(true);
     try {
       let rawData = code;
-      
       if (vaultMode === 'file' && selectedFile) {
         const ipfsHash = await uploadFileToIPFS(selectedFile);
         rawData = ipfsHash; 
       }
-
       const payload = { data: { function: "0x1::aptos_account::transfer", typeArguments: [], functionArguments: [account?.address, 0] } };
       const response = await signAndSubmitTransaction(payload);
       
       if (response && response.hash) {
-        const newRecord: VaultRecord = { 
-            hash: response.hash, 
-            data: encryptMsg(rawData, secretKey), 
-            type: vaultMode, 
-            fileName: selectedFile?.name, 
-            timestamp: Date.now() 
-        };
+        const newRecord: VaultRecord = { hash: response.hash, data: encryptMsg(rawData, secretKey), type: vaultMode, fileName: selectedFile?.name, timestamp: Date.now() };
         const newHistory = [newRecord, ...history];
         setHistory(newHistory); localStorage.setItem("shelby_final_vault", JSON.stringify(newHistory));
         setCode(""); setSelectedFile(null); setSecretKey("");
@@ -164,8 +156,7 @@ function ShelbyVault() {
         setTimeout(fetchBlockchainData, 2000);
       }
     } catch (error) { 
-        console.error(error);
-        alert("❌ Transaction Failed!"); 
+        console.error(error); alert("❌ Transaction Failed!"); 
     } finally { setIsUploading(false); }
   };
 
@@ -176,18 +167,12 @@ function ShelbyVault() {
   };
 
   const processUnlock = () => {
-    let targetData = "";
-    let recordInfo: any = null;
-
+    let targetData = ""; let recordInfo: any = null;
     const params = new URLSearchParams(window.location.search);
-    const urlHash = params.get('hash');
-    const urlData = params.get('data');
-    const urlType = params.get('type');
-    const urlFname = params.get('fname');
+    const urlHash = params.get('hash'); const urlData = params.get('data'); const urlType = params.get('type'); const urlFname = params.get('fname');
 
     if (selectedHash === urlHash && urlData) {
-      targetData = decodeURIComponent(urlData);
-      recordInfo = { type: urlType || 'text', fileName: urlFname ? decodeURIComponent(urlFname) : "Shared File" };
+      targetData = decodeURIComponent(urlData); recordInfo = { type: urlType || 'text', fileName: urlFname ? decodeURIComponent(urlFname) : "Shared File" };
     } else {
       const record = history.find(h => h.hash === selectedHash);
       if (record) { targetData = record.data; recordInfo = record; }
@@ -196,25 +181,15 @@ function ShelbyVault() {
     if (targetData) {
       const result = decryptMsg(targetData, unlockKey);
       if (result) {
-        if (recordInfo.type === 'file') {
-            setDecryptedData(`https://gateway.pinata.cloud/ipfs/${result}`);
-        } else {
-            setDecryptedData(result);
-        }
-        setDecryptedRecord(recordInfo);
-        setUnlockError(false);
+        if (recordInfo.type === 'file') { setDecryptedData(`https://gateway.pinata.cloud/ipfs/${result}`); } 
+        else { setDecryptedData(result); }
+        setDecryptedRecord(recordInfo); setUnlockError(false);
       } else { setUnlockError(true); setDecryptedData(null); }
     } else { alert("❌ Encrypted data not found!"); }
   };
 
-  const copyAddress = () => {
-    if (account?.address) { navigator.clipboard.writeText(account.address); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-  };
-
-  const closeUnlockModal = () => {
-    setSelectedHash(null); setDecryptedData(null); setUnlockKey("");
-    if (window.history.pushState) window.history.pushState({}, '', window.location.pathname);
-  };
+  const copyAddress = () => { if (account?.address) { navigator.clipboard.writeText(account.address); setCopied(true); setTimeout(() => setCopied(false), 2000); } };
+  const closeUnlockModal = () => { setSelectedHash(null); setDecryptedData(null); setUnlockKey(""); if (window.history.pushState) window.history.pushState({}, '', window.location.pathname); };
 
   if (!mounted) return null;
   const isMainnet = network?.name?.toLowerCase().includes('mainnet');
@@ -232,14 +207,12 @@ function ShelbyVault() {
               <button onClick={handleFaucet} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs uppercase transition-colors ${isMainnet ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400' : 'bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400'}`}>
                 <Zap className="w-3.5 h-3.5" /> Faucet
               </button>
-              
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
                 <Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                 <DollarSign className="w-4 h-4" /><span className="text-sm font-bold">{shelbyBalance} S-USD</span>
               </div>
-
               <button onClick={copyAddress} className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg"><span className="text-sm font-mono text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
               <button onClick={disconnect} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/20"><LogOut className="w-4 h-4" /></button>
             </>
@@ -295,9 +268,7 @@ function ShelbyVault() {
                       <a href={`https://explorer.aptoslabs.com/txn/${tx.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-cyan-400 hover:underline truncate w-24">{tx.hash.slice(0,12)}...</a>
                       {isLocal ? (
                         <div className="flex gap-2">
-                          <button onClick={() => handleShare(localRecord)} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-2 py-1.5 rounded-md text-[10px] font-bold" title="Copy Shareable Link">
-                            <Share2 className="w-3 h-3"/>
-                          </button>
+                          <button onClick={() => handleShare(localRecord)} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-2 py-1.5 rounded-md text-[10px] font-bold" title="Copy Shareable Link"><Share2 className="w-3 h-3"/></button>
                           <button onClick={() => setSelectedHash(tx.hash)} className="bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600/40 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button>
                         </div>
                       ) : <span className="text-[10px] text-gray-600 px-2">On-Chain</span>}
