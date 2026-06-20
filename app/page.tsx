@@ -269,11 +269,12 @@ function ShelbyVault() {
           )}
         </div>
 
+        {/* 🚀 ফিক্সড থিম টগল বাটন: এখন বাটনটি স্ক্রিনের বর্তমান মোডটিই প্রদর্শন করবে */}
         <button 
           onClick={() => setIsLightMode(!isLightMode)} 
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs border transition-all shadow-sm ${isLightMode ? 'bg-slate-800 border-slate-700 text-white hover:bg-slate-900' : 'bg-[#1a1a1a] border-white/10 text-yellow-400 hover:bg-[#252525]'}`}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs border transition-all shadow-sm ${isLightMode ? 'bg-amber-100/60 border-amber-300 text-amber-700 hover:bg-amber-100' : 'bg-purple-950/40 border-purple-500/30 text-purple-300 hover:bg-purple-900/50'}`}
         >
-          {isLightMode ? <><Moon className="w-3.5 h-3.5"/> Dark</> : <><Sun className="w-3.5 h-3.5"/> Light</>}
+          {isLightMode ? <><Sun className="w-3.5 h-3.5 text-amber-500"/> Light Mode</> : <><Moon className="w-3.5 h-3.5 text-purple-400"/> Dark Mode</>}
         </button>
       </div>
 
@@ -343,4 +344,4 @@ function ShelbyVault() {
       )}
     </div>
   );
-}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   }
