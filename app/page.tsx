@@ -56,7 +56,6 @@ function ShelbyVault() {
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
-      // 🚀 নেটওয়ার্ক ফিক্স: এখন Shelbynet সহ যেকোনো কাস্টম নেটওয়ার্ক ধরবে
       let nodeUrl = 'https://fullnode.testnet.aptoslabs.com/v1';
       if (network?.name?.toLowerCase().includes('mainnet')) {
           nodeUrl = 'https://fullnode.mainnet.aptoslabs.com/v1';
@@ -126,10 +125,10 @@ function ShelbyVault() {
       return () => clearInterval(interval);
     } else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-    // 🚀 আপনার রিকোয়েস্ট অনুযায়ী একদম ক্লিন ও সিম্পল ফসেট বাটন (কোনো কপি বা অ্যালার্ট নেই)
+    // 🚀 অটো-কপি রিমুভ করা হয়েছে এবং দুটো ফসেট বাটনকেই Shelby-র নিরাপদ ফসেট পেজে যুক্ত করা হয়েছে
   const handleFaucet = (type: 'apt' | 'shelby') => {
     if (type === 'apt') {
-        window.open("https://aptos.dev/network/faucet", "_blank");
+        window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
     } else {
         window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#shelbyusd-faucet", "_blank");
     }
@@ -197,11 +196,11 @@ function ShelbyVault() {
     } else { alert("❌ Encrypted data not found!"); }
   };
 
+  // 🚀 ম্যানুয়াল কপি বাটন আগের মতোই কাজ করবে
   const copyAddress = () => { if (account?.address) { navigator.clipboard.writeText(account.address); setCopied(true); setTimeout(() => setCopied(false), 2000); } };
   const closeUnlockModal = () => { setSelectedHash(null); setDecryptedData(null); setUnlockKey(""); if (window.history.pushState) window.history.pushState({}, '', window.location.pathname); };
 
   if (!mounted) return null;
-  const isMainnet = network?.name?.toLowerCase().includes('mainnet');
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center p-4 font-sans pb-20">
@@ -213,6 +212,7 @@ function ShelbyVault() {
         <div className="flex flex-wrap items-center gap-3">
           {connected && account ? (
             <>
+              {/* 🚀 ফসেট বাটনগুলো এখন একদম সিম্পল */}
               <button onClick={() => handleFaucet('apt')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-[10px] sm:text-xs uppercase transition-colors bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20">
                 <Zap className="w-3.5 h-3.5" /> APT Faucet
               </button>
@@ -324,4 +324,5 @@ function ShelbyVault() {
       <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.3); border-radius: 10px; }`}} />
     </div>
   );
-}
+          }
+                      
