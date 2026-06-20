@@ -18,7 +18,6 @@ const decryptMsg = (c: string, p: string) => { try { let r = atob(c), res = ''; 
 type VaultRecord = { hash: string, data: string, type: 'text'|'file', fileName?: string, timestamp: number };
 type OnChainTx = { hash: string, timestamp: number, success: boolean, version: string };
 
-// 🚀 আসল নোটিফিকেশন টাইপ
 type AppNotification = { id: string, title: string, message: string, time: string, type: 'success' | 'error' | 'info' };
 
 function ShelbyVault() {
@@ -26,7 +25,6 @@ function ShelbyVault() {
   const [mounted, setMounted] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   
-  // 🚀 নোটিফিকেশন ইঞ্জিন স্টেট
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -51,7 +49,6 @@ function ShelbyVault() {
   const [unlockError, setUnlockError] = useState(false);
   const [latency, setLatency] = useState<number>(0);
 
-  // 🚀 রিয়েল-টাইম নোটিফিকেশন পুশ করার মাস্টার ফাংশন
   const pushNotification = (title: string, message: string, type: 'success' | 'error' | 'info') => {
     const newNotif: AppNotification = {
       id: Math.random().toString(36).substring(2, 9),
@@ -77,7 +74,6 @@ function ShelbyVault() {
     return () => clearInterval(ping);
   }, [connected]);
 
-  // 🚀 ইভেন্ট লিসেনার ১: কানেকশন সাকসেস হলে নোটিফিকেশন পাঠাবে
   useEffect(() => {
     if (connected && account?.address) {
       pushNotification("Wallet Connected ✅", `Address: ${account.address.slice(0, 6)}...${account.address.slice(-4)}`, "success");
@@ -171,12 +167,10 @@ function ShelbyVault() {
         setHistory(newHistory); localStorage.setItem("shelby_final_vault", JSON.stringify(newHistory));
         setCode(""); setSelectedFile(null); setSecretKey("");
         
-        // 🚀 ইভেন্ট লিসেনার ২: ট্রানজাকশন সাকসেস
         pushNotification("Asset Secured! ✅", `Hash: ${response.hash.slice(0, 10)}... synced with IPFS`, "success");
         alert("✅ Secure Asset Locked & Synced with IPFS!"); setTimeout(fetchBlockchainData, 2000);
       }
     } catch (error) { 
-      // 🚀 ইভেন্ট লিসেনার ৩: ট্রানজাকশন কেটে দেওয়া বা ফেইল হওয়া
       pushNotification("Transaction Failed ❌", "User rejected request or network timeout", "error");
       alert("❌ Transaction Failed!"); 
     } finally { setIsUploading(false); }
@@ -219,17 +213,15 @@ function ShelbyVault() {
   const closeUnlockModal = () => { setSelectedHash(null); setDecryptedData(null); setUnlockKey(""); if (window.history.pushState) window.history.pushState({}, '', window.location.pathname); };
 
   if (!mounted) return null;
-  return (
-    <div className={`min-h-screen flex flex-col items-center p-4 font-sans pb-20 transition-colors duration-500 relative ${isLightMode ? 'bg-[#f8f9fa] text-slate-900' : 'bg-[#050505] text-white'}`}>
+    return (
+    <div className={`min-h-screen w-full flex flex-col items-center p-4 font-sans pb-20 transition-colors duration-500 relative ${isLightMode ? 'bg-[#f8f9fa] text-slate-900' : 'bg-[#050505] text-white'}`}>
       
-      {/* 🔴 আপনার চাওয়া মতো একদম উপরের ডানদিকের কোণায় আলাদা আইসোলেটেড থিম ও নোটিফিকেশন বার */}
       <div className="w-full max-w-6xl flex justify-end items-center gap-3 pt-2 px-2">
         
-        {/* নোটিফিকেশন ড্রপডাউন সিস্টেম */}
         <div className="relative">
           <button 
             onClick={() => { setShowNotifPanel(!showNotifPanel); setUnreadCount(0); }} 
-            className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm ${isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50' : 'bg-white/10 border-white/15 text-gray-200 hover:bg-white/20'}`}
+            className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm ${isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50' : 'bg-[#1a1a1a] border-white/10 text-gray-200 hover:bg-[#252525]'}`}
           >
             <Bell className="w-4 h-4 text-cyan-400" />
             <span>Activity Log</span>
@@ -240,7 +232,6 @@ function ShelbyVault() {
             )}
           </button>
 
-          {/* লাইভ নোটিফিকেশন প্যানেল */}
           {showNotifPanel && (
             <div className={`absolute top-full right-0 mt-2 w-80 sm:w-96 rounded-2xl shadow-2xl border p-4 z-50 animate-in fade-in zoom-in-95 space-y-3 ${isLightMode ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#121212] border-white/20 text-white'}`}>
               <div className="flex justify-between items-center border-b pb-2.5 border-current/10">
@@ -257,7 +248,7 @@ function ShelbyVault() {
                   <div className="text-center py-8 text-gray-500 text-xs font-mono">No recent wallet events recorded</div>
                 ) : (
                   notifications.map(n => (
-                    <div key={n.id} className={`p-2.5 rounded-xl border text-xs flex items-start gap-2.5 ${n.type === 'success' ? (isLightMode ? 'bg-emerald-50 border-emerald-200' : 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300') : (n.type === 'error' ? (isLightMode ? 'bg-rose-50 border-rose-200' : 'bg-rose-950/30 border-rose-500/30 text-rose-300') : (isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10 text-cyan-300'))}`}>
+                    <div key={n.id} className={`p-2.5 rounded-xl border text-xs flex items-start gap-2.5 ${n.type === 'success' ? (isLightMode ? 'bg-emerald-50 border-emerald-200' : 'bg-[#0f291e] border-emerald-500/30 text-emerald-300') : (n.type === 'error' ? (isLightMode ? 'bg-rose-50 border-rose-200' : 'bg-[#311116] border-rose-500/30 text-rose-300') : (isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-[#1a1a1a] border-white/10 text-cyan-300'))}`}>
                       <div className="mt-0.5">
                         {n.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400"/>}
                         {n.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400"/>}
@@ -278,17 +269,15 @@ function ShelbyVault() {
           )}
         </div>
 
-        {/* থিম টগল বাটন */}
         <button 
           onClick={() => setIsLightMode(!isLightMode)} 
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs border transition-all shadow-sm ${isLightMode ? 'bg-slate-800 border-slate-700 text-white hover:bg-slate-900' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20'}`}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs border transition-all shadow-sm ${isLightMode ? 'bg-slate-800 border-slate-700 text-white hover:bg-slate-900' : 'bg-[#1a1a1a] border-white/10 text-yellow-400 hover:bg-[#252525]'}`}
         >
           {isLightMode ? <><Moon className="w-3.5 h-3.5"/> Dark</> : <><Sun className="w-3.5 h-3.5"/> Light</>}
         </button>
       </div>
 
-      {/* 🔴 মূল ওয়ালেট হেডার (উপরে ডানদিকের বার থেকে সম্পূর্ণ আলাদা) */}
-      <header className={`w-full max-w-6xl flex flex-col md:flex-row justify-between items-center gap-4 py-5 px-6 mt-3 rounded-2xl shadow-lg border transition-colors ${isLightMode ? 'bg-white border-slate-200' : 'bg-white/[0.02] border-white/5'}`}>
+      <header className={`w-full max-w-6xl flex flex-col md:flex-row justify-between items-center gap-4 py-5 px-6 mt-3 rounded-2xl shadow-lg border transition-colors ${isLightMode ? 'bg-white border-slate-200' : 'bg-[#0f0f0f] border-white/10'}`}>
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-gradient-to-br from-fuchsia-600 to-cyan-600 rounded-xl"><Shield className="text-white w-6 h-6" /></div>
           <div><h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-fuchsia-400 to-cyan-400">SHELBY <span className={isLightMode ? 'text-slate-900' : 'text-white'}>VAULT</span></h1></div>
@@ -317,28 +306,28 @@ function ShelbyVault() {
         </div>
       </header>
 
-      <div className={`w-full max-w-6xl mt-4 flex justify-between items-center rounded-lg px-6 py-3 text-xs font-mono border ${isLightMode ? 'bg-white border-slate-200 text-slate-500' : 'bg-white/[0.02] border-white/5 text-gray-400'}`}>
+      <div className={`w-full max-w-6xl mt-4 flex justify-between items-center rounded-lg px-6 py-3 text-xs font-mono border ${isLightMode ? 'bg-white border-slate-200 text-slate-500' : 'bg-[#0f0f0f] border-white/10 text-gray-400'}`}>
         <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'}`}></div><span className={connected ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>{connected ? `NODE: ${network?.name?.toUpperCase() || 'TESTNET'}` : 'OFFLINE'}</span></div>
         <div><span>LATENCY: <span className="text-cyan-500">{latency}ms</span></span></div>
       </div>
 
       <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-6 mt-6">
         <main className="flex-1 space-y-6">
-          <div className={`border rounded-xl p-6 relative ${isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0a0a0a] border-white/10'}`}>
+          <div className={`border rounded-xl p-6 relative ${isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0f0f0f] border-white/10'}`}>
             <div className={`flex gap-4 mb-6 border-b pb-4 ${isLightMode ? 'border-slate-100' : 'border-white/5'}`}>
               <button onClick={() => setVaultMode('text')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'text' ? 'text-fuchsia-500 border-b-2 border-fuchsia-500' : 'text-gray-400 hover:text-gray-500'}`}><FileText className="w-4 h-4"/> Secret Text</button>
               <button onClick={() => setVaultMode('file')} className={`flex items-center gap-2 text-sm font-bold pb-2 ${vaultMode === 'file' ? 'text-fuchsia-500 border-b-2 border-fuchsia-500' : 'text-gray-400 hover:text-gray-500'}`}><UploadCloud className="w-4 h-4"/> IPFS File Vault</button>
             </div>
-            {vaultMode === 'text' ? <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Type highly sensitive data here..." className={`w-full h-40 border rounded-lg p-4 text-sm font-mono outline-none resize-none ${isLightMode ? 'bg-slate-50 border-slate-200 text-slate-800 focus:border-fuchsia-400' : 'bg-black/60 border-white/5 text-gray-300 focus:border-fuchsia-500/50'}`} /> : <div className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer ${isDragging ? 'border-fuchsia-500 bg-fuchsia-500/10' : (isLightMode ? 'border-slate-300 bg-slate-50 hover:border-slate-400' : 'border-white/10 bg-black/40 hover:border-white/30')}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) setSelectedFile(e.dataTransfer.files[0]); }} onClick={() => fileInputRef.current?.click()}><input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files?.[0] && setSelectedFile(e.target.files[0])} />{selectedFile ? <div className="text-center"><FileIcon className="w-8 h-8 text-fuchsia-500 mx-auto mb-2"/><span className="text-sm font-bold text-fuchsia-500">{selectedFile.name}</span></div> : <div className="text-center text-gray-500"><UploadCloud className="w-8 h-8 mx-auto mb-2"/><span className="text-sm font-bold">Select File (Max 10MB)</span></div>}</div>}
-            <div className="mt-4 relative"><Key className="absolute left-3 top-3.5 h-5 w-5 text-fuchsia-500"/><input type="password" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} placeholder="Set Secret Password" className={`w-full border rounded-lg py-3 pl-10 pr-4 text-sm outline-none focus:border-fuchsia-500 ${isLightMode ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-black/80 border-white/10 text-fuchsia-300'}`}/></div>
+            {vaultMode === 'text' ? <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Type highly sensitive data here..." className={`w-full h-40 border rounded-lg p-4 text-sm font-mono outline-none resize-none ${isLightMode ? 'bg-slate-50 border-slate-200 text-slate-800 focus:border-fuchsia-400' : 'bg-[#1a1a1a] border-white/5 text-gray-300 focus:border-fuchsia-500/50'}`} /> : <div className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer ${isDragging ? 'border-fuchsia-500 bg-fuchsia-500/10' : (isLightMode ? 'border-slate-300 bg-slate-50 hover:border-slate-400' : 'border-white/10 bg-[#1a1a1a] hover:border-white/30')}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) setSelectedFile(e.dataTransfer.files[0]); }} onClick={() => fileInputRef.current?.click()}><input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files?.[0] && setSelectedFile(e.target.files[0])} />{selectedFile ? <div className="text-center"><FileIcon className="w-8 h-8 text-fuchsia-500 mx-auto mb-2"/><span className="text-sm font-bold text-fuchsia-500">{selectedFile.name}</span></div> : <div className="text-center text-gray-500"><UploadCloud className="w-8 h-8 mx-auto mb-2"/><span className="text-sm font-bold">Select File (Max 10MB)</span></div>}</div>}
+            <div className="mt-4 relative"><Key className="absolute left-3 top-3.5 h-5 w-5 text-fuchsia-500"/><input type="password" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} placeholder="Set Secret Password" className={`w-full border rounded-lg py-3 pl-10 pr-4 text-sm outline-none focus:border-fuchsia-500 ${isLightMode ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#1a1a1a] border-white/10 text-fuchsia-300'}`}/></div>
           </div>
           <button onClick={handleUpload} disabled={!connected || isUploading || (!code && !selectedFile) || !secretKey} className="w-full bg-gradient-to-r from-fuchsia-600 to-cyan-600 disabled:opacity-50 font-bold py-4 rounded-xl text-white flex justify-center items-center gap-2 shadow-lg">{isUploading ? <><Loader2 className="w-5 h-5 animate-spin"/> SECURING TO CHAIN...</> : "LOCK IN VAULT"}</button>
         </main>
         <aside className="w-full lg:w-96 flex flex-col gap-4">
-          <div className={`border rounded-2xl p-5 h-[450px] flex flex-col ${isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-white/[0.02] border-white/10'}`}>
+          <div className={`border rounded-2xl p-5 h-[450px] flex flex-col ${isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0f0f0f] border-white/10'}`}>
             <h3 className={`font-bold text-sm uppercase flex items-center gap-2 mb-4 border-b pb-4 ${isLightMode ? 'border-slate-100' : 'border-white/5'}`}><Globe className="w-4 h-4 text-cyan-500"/> Live Blockchain History</h3>
             <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-              {!connected ? <div className="text-center text-gray-500 py-10">Connect wallet to view history.</div> : onChainHistory.length === 0 ? <div className="text-center text-gray-500 py-10">No recent transactions.</div> : onChainHistory.map((tx, i) => { const localRecord = history.find(h => h.hash === tx.hash); const isLocal = !!localRecord; return <div key={i} className={`border rounded-lg p-3 ${isLightMode ? 'bg-slate-50 border-slate-200 hover:border-cyan-400' : 'bg-black/40 border-white/10 hover:border-cyan-500/50'}`}><div className="flex justify-between mb-2"><span className="text-[10px] text-gray-400 flex items-center gap-1"><Activity className="w-3 h-3 text-cyan-500"/> Ver: {tx.version}</span><span className="text-[10px] text-gray-500">{new Date(tx.timestamp).toLocaleString()}</span></div><div className="flex justify-between items-center"><a href={`https://explorer.aptoslabs.com/txn/${tx.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-cyan-500 hover:underline truncate w-24">{tx.hash.slice(0,12)}...</a>{isLocal ? <div className="flex gap-2"><button onClick={() => handleShare(localRecord)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 px-2 py-1.5 rounded-md text-[10px] font-bold"><Share2 className="w-3 h-3"/></button><button onClick={() => setSelectedHash(tx.hash)} className="bg-fuchsia-500/10 text-fuchsia-500 hover:bg-fuchsia-500/20 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button></div> : <span className="text-[10px] text-gray-500 px-2">On-Chain</span>}</div></div>; })}
+              {!connected ? <div className="text-center text-gray-500 py-10">Connect wallet to view history.</div> : onChainHistory.length === 0 ? <div className="text-center text-gray-500 py-10">No recent transactions.</div> : onChainHistory.map((tx, i) => { const localRecord = history.find(h => h.hash === tx.hash); const isLocal = !!localRecord; return <div key={i} className={`border rounded-lg p-3 ${isLightMode ? 'bg-slate-50 border-slate-200 hover:border-cyan-400' : 'bg-[#1a1a1a] border-white/10 hover:border-cyan-500/50'}`}><div className="flex justify-between mb-2"><span className="text-[10px] text-gray-400 flex items-center gap-1"><Activity className="w-3 h-3 text-cyan-500"/> Ver: {tx.version}</span><span className="text-[10px] text-gray-500">{new Date(tx.timestamp).toLocaleString()}</span></div><div className="flex justify-between items-center"><a href={`https://explorer.aptoslabs.com/txn/${tx.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-cyan-500 hover:underline truncate w-24">{tx.hash.slice(0,12)}...</a>{isLocal ? <div className="flex gap-2"><button onClick={() => handleShare(localRecord)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 px-2 py-1.5 rounded-md text-[10px] font-bold"><Share2 className="w-3 h-3"/></button><button onClick={() => setSelectedHash(tx.hash)} className="bg-fuchsia-500/10 text-fuchsia-500 hover:bg-fuchsia-500/20 px-3 py-1.5 rounded-md text-[10px] font-bold"><Unlock className="w-3 h-3 inline mr-1"/> DECRYPT</button></div> : <span className="text-[10px] text-gray-500 px-2">On-Chain</span>}</div></div>; })}
             </div>
           </div>
         </aside>
@@ -346,12 +335,12 @@ function ShelbyVault() {
 
       {selectedHash && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className={`border rounded-2xl w-full max-w-sm p-6 shadow-2xl ${isLightMode ? 'bg-white border-fuchsia-500 text-slate-900' : 'bg-[#0a0a0a] border-fuchsia-500/30'}`}>
+          <div className={`border rounded-2xl w-full max-w-sm p-6 shadow-2xl ${isLightMode ? 'bg-white border-fuchsia-500 text-slate-900' : 'bg-[#0f0f0f] border-fuchsia-500/30'}`}>
             <div className="flex justify-between mb-6"><h3 className="font-bold"><Lock className="w-5 h-5 text-fuchsia-500 inline mr-2"/> Unlock Asset</h3><button onClick={closeUnlockModal}><X className="text-gray-500 hover:text-red-500 w-5 h-5"/></button></div>
-            {!decryptedData ? <div className="space-y-4"><input type="password" value={unlockKey} onChange={(e) => { setUnlockKey(e.target.value); setUnlockError(false); }} placeholder="Enter Password" className={`w-full border rounded-lg p-3 outline-none focus:border-fuchsia-500 ${isLightMode ? (unlockError ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-slate-50') : (unlockError ? 'border-red-500 bg-black' : 'border-white/10 bg-black text-fuchsia-300')}`}/>{unlockError && <p className="text-xs text-red-500 font-bold">Incorrect Password!</p>}<button onClick={processUnlock} className="w-full bg-fuchsia-600 text-white font-bold p-3 rounded-lg">Decrypt</button></div> : <div className="text-center space-y-4"><span className="text-green-500 font-bold flex justify-center items-center gap-2"><CheckCircle2 className="w-5 h-5"/> Success</span>{decryptedRecord?.type === 'file' ? <div className={`p-4 rounded-lg ${isLightMode ? 'bg-slate-50 border border-slate-200' : 'bg-black/50'}`}><img src={decryptedData} className="max-h-[200px] mx-auto mb-4 rounded" onError={(e) => { e.currentTarget.style.display='none'; document.getElementById('fallback-icon')?.classList.remove('hidden'); }}/><FileIcon id="fallback-icon" className="w-12 h-12 text-cyan-500 mx-auto mb-4 hidden"/><a href={decryptedData} target="_blank" rel="noreferrer" download={decryptedRecord.fileName || "file"} className="bg-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-sm inline-block">Download File</a></div> : <textarea readOnly value={decryptedData} className={`w-full h-32 border p-3 rounded-lg outline-none ${isLightMode ? 'bg-green-50 border-green-200 text-green-800' : 'bg-green-500/10 border-green-500/30 text-green-300'}`}/>}</div>}
+            {!decryptedData ? <div className="space-y-4"><input type="password" value={unlockKey} onChange={(e) => { setUnlockKey(e.target.value); setUnlockError(false); }} placeholder="Enter Password" className={`w-full border rounded-lg p-3 outline-none focus:border-fuchsia-500 ${isLightMode ? (unlockError ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-slate-50') : (unlockError ? 'border-red-500 bg-[#1a1a1a]' : 'border-white/10 bg-[#1a1a1a] text-fuchsia-300')}`}/>{unlockError && <p className="text-xs text-red-500 font-bold">Incorrect Password!</p>}<button onClick={processUnlock} className="w-full bg-fuchsia-600 text-white font-bold p-3 rounded-lg">Decrypt</button></div> : <div className="text-center space-y-4"><span className="text-green-500 font-bold flex justify-center items-center gap-2"><CheckCircle2 className="w-5 h-5"/> Success</span>{decryptedRecord?.type === 'file' ? <div className={`p-4 rounded-lg ${isLightMode ? 'bg-slate-50 border border-slate-200' : 'bg-black/50'}`}><img src={decryptedData} className="max-h-[200px] mx-auto mb-4 rounded" onError={(e) => { e.currentTarget.style.display='none'; document.getElementById('fallback-icon')?.classList.remove('hidden'); }}/><FileIcon id="fallback-icon" className="w-12 h-12 text-cyan-500 mx-auto mb-4 hidden"/><a href={decryptedData} target="_blank" rel="noreferrer" download={decryptedRecord.fileName || "file"} className="bg-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-sm inline-block">Download File</a></div> : <textarea readOnly value={decryptedData} className={`w-full h-32 border p-3 rounded-lg outline-none ${isLightMode ? 'bg-green-50 border-green-200 text-green-800' : 'bg-green-500/10 border-green-500/30 text-green-300'}`}/>}</div>}
           </div>
         </div>
       )}
     </div>
   );
-                                }
+}
