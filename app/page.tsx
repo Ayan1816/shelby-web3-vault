@@ -236,7 +236,7 @@ function ShelbyVault() {
   const closeUnlockModal = () => { setSelectedHash(null); setDecryptedData(null); setUnlockKey(""); if (window.history.pushState) window.history.pushState({}, '', window.location.pathname); };
 
   if (!mounted) return null;
-          return (
+    return (
     <div className={`min-h-screen flex flex-col items-center p-4 font-sans pb-20 transition-colors duration-500 ${isLightMode ? 'bg-[#f8f9fa] text-slate-900' : 'bg-[#050505] text-white'}`}>
       <header className={`w-full max-w-6xl flex flex-col md:flex-row justify-between items-center gap-4 py-5 px-6 mt-4 rounded-2xl shadow-lg border transition-colors ${isLightMode ? 'bg-white border-slate-200' : 'bg-white/[0.02] border-white/5'}`}>
         <div className="flex items-center gap-3">
@@ -444,4 +444,4 @@ function ShelbyVault() {
                           <span className="text-[9px] text-gray-500 font-mono">{new Date(item.decryptedAt).toLocaleDateString()}</span>
                         </div>
                       </div>
-                                                  
+       
