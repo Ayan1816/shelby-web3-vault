@@ -56,8 +56,16 @@ function ShelbyVault() {
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
-      const isMainnet = network?.name?.toLowerCase().includes('mainnet');
-      const nodeUrl = isMainnet ? 'https://fullnode.mainnet.aptoslabs.com/v1' : 'https://fullnode.testnet.aptoslabs.com/v1';
+      // 🚀 নেটওয়ার্ক ফিক্স: এখন Shelbynet সহ যেকোনো কাস্টম নেটওয়ার্ক ধরবে
+      let nodeUrl = 'https://fullnode.testnet.aptoslabs.com/v1';
+      if (network?.name?.toLowerCase().includes('mainnet')) {
+          nodeUrl = 'https://fullnode.mainnet.aptoslabs.com/v1';
+      }
+      const customUrl = (network as any)?.url || (network as any)?.nodeUrl;
+      if (customUrl) {
+          nodeUrl = customUrl.endsWith('/v1') ? customUrl : `${customUrl.replace(/\/$/, "")}/v1`;
+      }
+
       const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
 
       const assetType = "0x1::aptos_coin::AptosCoin";
@@ -84,7 +92,6 @@ function ShelbyVault() {
               else setBalance("0.00");
           }
           
-          // 🚀 અપগ्रेডেড ব্যালেন্স স্ক্যানার (যেকোনো Shelby টোকেন ধরবে)
           const shelbyData = allData.find((r: any) => 
               r.type.toLowerCase().includes("shelby") && 
               (r.data?.coin?.value !== undefined || r.data?.balance !== undefined)
@@ -119,23 +126,11 @@ function ShelbyVault() {
       return () => clearInterval(interval);
     } else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-    // 🚀 আপনার ফসেটের লিংক এবং অ্যালার্টের ১০০% নিখুঁত ফিক্স
+    // 🚀 আপনার রিকোয়েস্ট অনুযায়ী একদম ক্লিন ও সিম্পল ফসেট বাটন (কোনো কপি বা অ্যালার্ট নেই)
   const handleFaucet = (type: 'apt' | 'shelby') => {
-    const isMainnet = network?.name?.toLowerCase().includes('mainnet');
-    if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
-    
-    if (!account?.address) {
-        return alert("⚠️ Please Connect Your Wallet First!");
-    }
-
-    navigator.clipboard.writeText(account.address);
-    
     if (type === 'apt') {
-        alert("✅ Address Copied! Please paste it in the APT Faucet form.");
         window.open("https://aptos.dev/network/faucet", "_blank");
     } else {
-        alert("✅ Address Copied! Please paste it in the S-USD Faucet form.");
-        // এখানে #apt-faucet বদলে #shelbyusd-faucet দেওয়া হয়েছে
         window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#shelbyusd-faucet", "_blank");
     }
   };
