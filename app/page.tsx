@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
@@ -23,13 +23,13 @@ function ShelbyVault() {
   const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
   const [mounted, setMounted] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'vault' | 'scanner' | 'gallery'>('vault'); // 🚀 মাস্টার ট্যাব সিস্টেম
+  const [activeTab, setActiveTab] = useState<'vault' | 'scanner' | 'gallery'>('vault'); 
   
   const [balance, setBalance] = useState<string>("0.00");
   const [shelbyBalance, setShelbyBalance] = useState<string>("0.00");
   const [history, setHistory] = useState<VaultRecord[]>([]);
   const [onChainHistory, setOnChainHistory] = useState<OnChainTx[]>([]);
-  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]); // 🚀 ৫ নম্বর ফিচার: গ্যালারি স্টেট
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]); 
   
   const [vaultMode, setVaultMode] = useState<'text' | 'file'>('text');
   const [code, setCode] = useState("");
@@ -46,10 +46,7 @@ function ShelbyVault() {
   const [unlockError, setUnlockError] = useState(false);
   const [latency, setLatency] = useState<number>(0);
 
-  // 🚀 ৪ নম্বর ফিচার: QR শেয়ার মোডাল স্টেট
   const [shareModalData, setShareModalData] = useState<{ link: string, record: VaultRecord } | null>(null);
-  
-  // 🚀 ৩ নম্বর ফিচার: ইন্টিগ্রিটি স্ক্যানার স্টেট
   const [scanTarget, setScanTarget] = useState<string>("");
   const [isScanningStatus, setIsScanningStatus] = useState<'idle' | 'scanning' | 'success' | 'failed'>('idle');
   const [scanResultLogs, setScanResultLogs] = useState<string[]>([]);
@@ -125,8 +122,7 @@ function ShelbyVault() {
     if (connected) { fetchBlockchainData(); const interval = setInterval(fetchBlockchainData, 15000); return () => clearInterval(interval); } 
     else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-
-  const handleFaucet = (type: 'apt' | 'shelby') => {
+    const handleFaucet = (type: 'apt' | 'shelby') => {
     if (type === 'apt') window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
     else window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#shelbyusd-faucet", "_blank");
   };
@@ -157,7 +153,6 @@ function ShelbyVault() {
     } catch (error) { console.error(error); alert("❌ Transaction Failed!"); } finally { setIsUploading(false); }
   };
 
-  // 🚀 ৪ নম্বর ফিচার ট্রিগার: পপ-আপ কিউআর মোডাল ওপেন হবে
   const handleOpenShareModal = (rec: VaultRecord) => {
     const link = `${window.location.origin}?hash=${rec.hash}&data=${encodeURIComponent(rec.data)}&type=${rec.type}&fname=${encodeURIComponent(rec.fileName || "")}`;
     setShareModalData({ link, record: rec });
@@ -183,7 +178,6 @@ function ShelbyVault() {
         else { setDecryptedData(result); }
         setDecryptedRecord(recordInfo); setUnlockError(false);
 
-        // 🚀 ৫ নম্বর ফিচার: আনলক হওয়ামাত্রই গ্যালারিতে পারমানেন্ট সেভ হয়ে যাবে!
         const newGalleryItem: GalleryItem = {
            hash: recordInfo.hash, data: finalContent, type: recordInfo.type,
            fileName: recordInfo.fileName || (recordInfo.type === 'file' ? 'IPFS_Secure_File' : 'Classified_Text_Note'),
@@ -200,13 +194,11 @@ function ShelbyVault() {
     } else alert("❌ Encrypted data not found!");
   };
 
-  // 🚀 ৫ নম্বর ফিচার: গ্যালারি থেকে আইটেম ডিলিট করার ফাংশন
   const deleteGalleryItem = (hashToDelete: string) => {
      const filtered = galleryItems.filter(item => item.hash !== hashToDelete);
      setGalleryItems(filtered); localStorage.setItem("shelby_decrypted_gallery", JSON.stringify(filtered));
   };
 
-  // 🚀 ৩ নম্বর ফিচার: ইন্টিগ্রিটি ও টেম্পার চেকিং ইঞ্জিন
   const runIntegrityScan = () => {
      if(!scanTarget) return alert("Please select a target Hash first!");
      setIsScanningStatus('scanning');
@@ -284,7 +276,6 @@ function ShelbyVault() {
         <div className="flex items-center gap-4"><span>LATENCY: <span className="text-cyan-500">{latency}ms</span></span></div>
       </div>
 
-      {/* 🚀 মাস্টার নেভিগেশন বার (৩টি ট্যাবের মাঝে সুইচ করার জন্য) */}
       <nav className="w-full max-w-6xl flex flex-wrap justify-center gap-3 my-6">
         <button onClick={() => setActiveTab('vault')} className={`px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 border transition-all ${activeTab === 'vault' ? 'bg-gradient-to-r from-fuchsia-600 to-cyan-600 text-white border-transparent shadow-lg shadow-cyan-500/20 scale-105' : (isLightMode ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50' : 'bg-white/[0.02] border-white/5 text-gray-400 hover:text-white')}`}>
           <Shield className="w-4 h-4"/> 1. Vault Workshop
@@ -300,7 +291,6 @@ function ShelbyVault() {
       </nav>
 
       <div className="w-full max-w-6xl">
-        {/* 🔴 মাস্টার ভিউ ১: মূল ভল্ট ও ব্লকচেইন হিস্ট্রি */}
         {activeTab === 'vault' && (
           <div className="flex flex-col lg:flex-row gap-6">
             <main className="flex-1 space-y-6">
@@ -345,7 +335,6 @@ function ShelbyVault() {
                           <a href={`https://explorer.aptoslabs.com/txn/${tx.hash}?network=${network?.name?.toLowerCase() || 'testnet'}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-cyan-500 hover:underline truncate w-24">{tx.hash.slice(0,12)}...</a>
                           {isLocal ? (
                             <div className="flex gap-1.5">
-                              {/* 🚀 ৪ নম্বর ফিচার ট্রিগার বাটন */}
                               <button onClick={() => handleOpenShareModal(localRecord)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 px-2.5 py-1.5 rounded-md text-[10px] font-bold flex items-center gap-1" title="Open QR & Share Link">
                                 <QrCode className="w-3 h-3"/> Share
                               </button>
@@ -362,7 +351,6 @@ function ShelbyVault() {
           </div>
         )}
 
-        {/* 🔴 মাস্টার ভিউ ২: ৩ নম্বর ফিচার (Asset Integrity Scanner) */}
         {activeTab === 'scanner' && (
           <div className={`border rounded-2xl p-6 md:p-8 space-y-6 ${isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0a0a0a] border-white/10'}`}>
             <div className="border-b pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -389,7 +377,6 @@ function ShelbyVault() {
               </button>
             </div>
 
-            {/* টার্মিনাল কনসোল */}
             <div className="w-full bg-black/95 border border-cyan-500/30 rounded-xl p-4 font-mono text-xs space-y-2.5 min-h-[180px] max-h-[280px] overflow-y-auto custom-scrollbar shadow-inner text-cyan-400">
               <div className="text-gray-500 border-b border-white/10 pb-2 flex justify-between font-bold">
                 <span>SECURE DIAGNOSTIC TERMINAL v2.4</span>
@@ -409,7 +396,6 @@ function ShelbyVault() {
           </div>
         )}
 
-        {/* 🔴 মাস্টার ভিউ ৩: ৫ নম্বর ফিচার (Decrypted Studio Gallery) */}
         {activeTab === 'gallery' && (
           <div className={`border rounded-2xl p-6 md:p-8 space-y-6 ${isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0a0a0a] border-white/10'}`}>
             <div className="border-b pb-4 flex justify-between items-center">
@@ -444,4 +430,9 @@ function ShelbyVault() {
                           <span className="text-[9px] text-gray-500 font-mono">{new Date(item.decryptedAt).toLocaleDateString()}</span>
                         </div>
                       </div>
-       
+                      <button onClick={() => deleteGalleryItem(item.hash)} className="text-gray-500 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity" title="Remove from studio">
+                        <Trash2 className="w-4 h-4"/>
+                      </button>
+                    </div>
+
+                    <div className={`w-full h-32 rounded-xl overflow-hidden 
