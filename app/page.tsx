@@ -84,9 +84,15 @@ function ShelbyVault() {
               else setBalance("0.00");
           }
           
-          const shelbyData = allData.find((r: any) => r.type.startsWith("0x1::coin::CoinStore<") && r.type.toLowerCase().includes("shelby"));
-          if (shelbyData?.data?.coin?.value) {
-              setShelbyBalance((parseInt(shelbyData.data.coin.value) / 100000000).toFixed(2));
+          // 🚀 અપগ्रेডেড ব্যালেন্স স্ক্যানার (যেকোনো Shelby টোকেন ধরবে)
+          const shelbyData = allData.find((r: any) => 
+              r.type.toLowerCase().includes("shelby") && 
+              (r.data?.coin?.value !== undefined || r.data?.balance !== undefined)
+          );
+          
+          if (shelbyData) {
+              const val = shelbyData.data?.coin?.value || shelbyData.data?.balance || "0";
+              setShelbyBalance((parseInt(val) / 100000000).toFixed(2));
           } else { setShelbyBalance("0.00"); }
       } else {
           if (!balanceFetched) setBalance("0.00");
@@ -113,20 +119,24 @@ function ShelbyVault() {
       return () => clearInterval(interval);
     } else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
-    // 🚀 আপনার দেওয়া লিংক অনুযায়ী ফসেট বাটন আপডেট করা হলো
+    // 🚀 আপনার ফসেটের লিংক এবং অ্যালার্টের ১০০% নিখুঁত ফিক্স
   const handleFaucet = (type: 'apt' | 'shelby') => {
     const isMainnet = network?.name?.toLowerCase().includes('mainnet');
     if (isMainnet) return alert("⚠️ Faucet is NOT available on Mainnet!");
     
-    if (account?.address) {
-        navigator.clipboard.writeText(account.address);
-        alert(`✅ Full Wallet Address Copied! Please paste it in the ${type.toUpperCase()} Faucet form.`);
+    if (!account?.address) {
+        return alert("⚠️ Please Connect Your Wallet First!");
     }
+
+    navigator.clipboard.writeText(account.address);
     
     if (type === 'apt') {
+        alert("✅ Address Copied! Please paste it in the APT Faucet form.");
         window.open("https://aptos.dev/network/faucet", "_blank");
     } else {
-        window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
+        alert("✅ Address Copied! Please paste it in the S-USD Faucet form.");
+        // এখানে #apt-faucet বদলে #shelbyusd-faucet দেওয়া হয়েছে
+        window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#shelbyusd-faucet", "_blank");
     }
   };
 
@@ -208,7 +218,6 @@ function ShelbyVault() {
         <div className="flex flex-wrap items-center gap-3">
           {connected && account ? (
             <>
-              {/* 🚀 এখানে ২টি আলাদা ফসেট বাটন দেওয়া হলো */}
               <button onClick={() => handleFaucet('apt')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-[10px] sm:text-xs uppercase transition-colors bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20">
                 <Zap className="w-3.5 h-3.5" /> APT Faucet
               </button>
