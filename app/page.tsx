@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, Sun, Moon, Bell, Trash2, AlertCircle, Info, Brain, Database } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, Sun, Moon, Bell, Trash2, AlertCircle, Info, Brain, Database, Terminal } from "lucide-react";
 
 export default function App() {
   return (
@@ -35,6 +35,7 @@ function ShelbyVault() {
   
   const [vaultMode, setVaultMode] = useState<'text' | 'file' | 'ai_prompt'>('text');
   const [code, setCode] = useState("");
+  const [jsonError, setJsonError] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -66,6 +67,14 @@ function ShelbyVault() {
   useEffect(() => {
     if (connected && account?.address) pushNotification("Wallet Connected", `Address: ${account.address.slice(0, 6)}...${account.address.slice(-4)}`, "success");
   }, [connected, account]);
+
+  // AI Prompt JSON Validation Engine
+  useEffect(() => {
+    if (vaultMode === 'ai_prompt' && code.length > 0) {
+      try { JSON.parse(code); setJsonError(""); } 
+      catch (e) { setJsonError("Invalid JSON format! Check your AI Prompt structure."); }
+    } else { setJsonError(""); }
+  }, [code, vaultMode]);
 
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
@@ -117,7 +126,12 @@ function ShelbyVault() {
   };
 
   const handleUpload = async () => {
+    if (vaultMode === 'ai_prompt' && jsonError) {
+      pushNotification("JSON Error", "Fix invalid JSON format before locking", "error");
+      return alert("Please fix the JSON errors before locking!");
+    }
     if (!secretKey || (!code && !selectedFile)) { pushNotification("Validation Error", "Please provide asset data and set password", "error"); return alert("Fill all fields & set a password!"); }
+    
     setIsUploading(true);
     pushNotification("Transaction Pending...", "Please approve in your Petra Wallet", "info");
     try {
@@ -235,7 +249,17 @@ function ShelbyVault() {
             </div>
 
             {vaultMode === 'text' && <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Type highly sensitive data here..." className={`w-full h-40 border rounded-lg p-4 text-sm font-mono outline-none resize-none ${isLightMode ? 'bg-slate-50 border-slate-200 text-slate-800 focus:border-fuchsia-400' : 'bg-[#1a1a1a] border-white/5 text-gray-300 focus:border-fuchsia-500/50'}`} />}
-            {vaultMode === 'ai_prompt' && <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter sensitive AI model weights, API keys, or system instructions here..." className={`w-full h-40 border rounded-lg p-4 text-sm font-mono outline-none resize-none ${isLightMode ? 'bg-cyan-50/50 border-cyan-200 text-slate-800 focus:border-cyan-500' : 'bg-cyan-950/10 border-cyan-500/20 text-cyan-300 focus:border-cyan-500/50'}`} />}
+            
+            {vaultMode === 'ai_prompt' && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-xs font-mono mb-2">
+                  <span className="text-gray-400 font-bold uppercase tracking-wider">JSON Prompt Editor</span>
+                  {jsonError && code.length > 0 ? <span className="text-red-500 flex items-center gap-1 bg-red-500/10 px-2 py-1 rounded"><X className="w-3 h-3"/> {jsonError}</span> : code.length > 0 ? <span className="text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-2 py-1 rounded"><CheckCircle2 className="w-3 h-3"/> Valid JSON Format</span> : null}
+                </div>
+                <textarea value={code} onChange={(e) => setCode(e.target.value)} placeholder='{"model": "gpt-4", "system_prompt": "You are a master coder..."}' className={`w-full h-40 border rounded-lg p-4 text-sm font-mono outline-none resize-none ${isLightMode ? 'bg-cyan-50/50 text-slate-800' : 'bg-cyan-950/10 text-cyan-300'} ${code.length > 0 && jsonError ? 'border-red-500 focus:border-red-500' : isLightMode ? 'border-cyan-200 focus:border-cyan-500' : 'border-cyan-500/20 focus:border-cyan-500/50'}`} />
+              </div>
+            )}
+
             {vaultMode === 'file' && <div className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer ${isDragging ? 'border-fuchsia-500 bg-fuchsia-500/10' : (isLightMode ? 'border-slate-300 bg-slate-50 hover:border-slate-400' : 'border-white/10 bg-[#1a1a1a] hover:border-white/30')}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) setSelectedFile(e.dataTransfer.files[0]); }} onClick={() => fileInputRef.current?.click()}><input type="file" ref={fileInputRef} className="hidden" onChange={(e) => e.target.files?.[0] && setSelectedFile(e.target.files[0])} />{selectedFile ? <div className="text-center"><FileIcon className="w-8 h-8 text-fuchsia-500 mx-auto mb-2"/><span className="text-sm font-bold text-fuchsia-500">{selectedFile.name}</span></div> : <div className="text-center text-gray-500"><UploadCloud className="w-8 h-8 mx-auto mb-2"/><span className="text-sm font-bold">Select File (Max 10MB)</span></div>}</div>}
 
             <div className="mt-5 space-y-3">
@@ -256,7 +280,7 @@ function ShelbyVault() {
               </div>
             </div>
           </div>
-          <button onClick={handleUpload} disabled={!connected || isUploading || (!code && !selectedFile) || !secretKey} className="w-full bg-gradient-to-r from-fuchsia-600 to-cyan-600 disabled:opacity-50 font-bold py-4 rounded-xl text-white flex justify-center items-center gap-2 shadow-lg">{isUploading ? <><Loader2 className="w-5 h-5 animate-spin"/> SECURING TO CHAIN...</> : "LOCK IN VAULT"}</button>
+          <button onClick={handleUpload} disabled={!connected || isUploading || (!code && !selectedFile) || !secretKey || (vaultMode === 'ai_prompt' && jsonError !== "")} className="w-full bg-gradient-to-r from-fuchsia-600 to-cyan-600 disabled:opacity-50 font-bold py-4 rounded-xl text-white flex justify-center items-center gap-2 shadow-lg">{isUploading ? <><Loader2 className="w-5 h-5 animate-spin"/> SECURING TO CHAIN...</> : "LOCK IN VAULT"}</button>
         </main>
 
         <aside className="w-full lg:w-96 flex flex-col gap-4">
@@ -279,4 +303,4 @@ function ShelbyVault() {
       )}
     </div>
   );
-      }
+}
