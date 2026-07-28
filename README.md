@@ -1,32 +1,41 @@
-# 🛡️ Shelby Vault v2.0 — Decentralized AI Data Hub
+# 🛡️ Shelby Vault v2.0 — Decentralized AI Data Hub (Beta)
 
-> **A client-side encrypted Object Storage interface and AI Prompt Validator, explicitly purpose-built for the Shelby Ecosystem.**
+> ⚠️ **Disclaimer (Beta / Experimental Version):** 
+> Shelby Vault is currently in active development. Based on recent security reviews, our cryptography and on-chain storage implementations are undergoing major upgrades to transition to industry-standard AES-256-GCM and proper Move module-based on-chain storage. 
+> 
+> **Please do not store real secrets, API keys, or sensitive model weights in this current version until the upcoming security patch is fully released.**
+
+> **An Object Storage interface and AI Prompt Validator, explicitly purpose-built for the Shelby Ecosystem.**
 
 ## 🌟 What is Shelby Vault? (App Overview)
-Shelby Vault is a zero-knowledge decentralized data vault built for Web3 and AI developers. It allows developers to validate, format, AES-256 encrypt, and securely store sensitive AI payloads (like Model Weights, System Prompts, and API Keys) directly on the blockchain without any third-party data leaks.
+Shelby Vault is a decentralized data vault concept built for Web3 and AI developers. It allows developers to validate, format, and locally encrypt AI payloads (like Model Weights, System Prompts, and API Keys) before interacting with the Aptos blockchain.
 
 ---
 
 ## ✨ Current Features & How They Work
 
 * 🧠 **Real-Time AI Prompt Validator:**
-  * **How it works:** Features a live JSON grammar checker. When developers input AI prompts or payload data, it automatically validates the structure. Valid JSON shows a green signal, preventing formatting errors before data is locked on-chain.
+  * **How it works:** Features a live JSON grammar checker. When developers input AI prompts or payload data, it automatically validates the structure. Valid JSON shows a green signal, preventing formatting errors before processing.
 
-* 🔐 **Client-Side AES-256 Encryption (Zero-Knowledge):**
-  * **How it works:** All text and files are encrypted locally inside the user's browser using a custom secret password. Only the encrypted hash is sent to the Aptos ledger, ensuring complete privacy even from the app creators.
+* 🔐 **Client-Side Encryption (Experimental / Upgrade in Progress):**
+  * **How it works:** All text and files are currently encrypted locally inside the user's browser using a basic cipher (stored via `localStorage`). 
+  * *Note: We are actively upgrading this to true AES-256-GCM via the Web Crypto API for complete zero-knowledge security.*
 
 * 🗄️ **IPFS File & Object Vault:**
-  * **How it works:** Allows users to securely upload and lock sensitive files directly to decentralized storage alongside encrypted text payloads.
+  * **How it works:** Allows users to securely upload files to decentralized storage alongside encrypted text payloads.
 
 * 🔄 **Target Storage Routing Engine:**
   * **How it works:** A smart UI routing mechanism currently connected to IPFS, with a pre-configured pipeline architecture ready to instantly switch to **Shelby Native S3** storage.
 
-* 🔔 **Live On-Chain Activity Log:**
-  * **How it works:** Real-time event tracking that monitors wallet connections, asset locking transactions, and decryption requests directly from the Aptos blockchain.
+* 🔔 **On-Chain Activity Log (Placeholder System):**
+  * **How it works:** Real-time event tracking that monitors wallet connections and records a placeholder transaction (0 APT) on the Aptos blockchain to log the activity. 
 
 ---
 
 ## 🚀 Future Roadmap & Vision
+
+* 🔒 **Security & Storage Patch (Current Priority):**
+  * **Future Plan:** Replacing the current cipher with true AES-256-GCM encryption (PBKDF2 for key derivation) and implementing a custom Move module for authentic on-chain storage, phasing out the current local storage system.
 
 * 🔴 **Shelby Native S3 Migration:**
   * **Future Plan:** Fully migrating the backend storage engine from IPFS to **Shelby's Native S3 RPCs** as soon as public endpoints drop, ensuring 10x faster retrieval and native ecosystem alignment.
