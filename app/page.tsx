@@ -12,8 +12,45 @@ export default function App() {
   );
 }
 
-const encryptMsg = (t: string, p: string) => { try { const e = encodeURIComponent(t); let r = ''; for(let i=0; i<e.length; i++) r += String.fromCharCode(e.charCodeAt(i) ^ p.charCodeAt(i % p.length)); return btoa(r); } catch(err) { return ""; } };
-const decryptMsg = (c: string, p: string) => { try { let r = atob(c), res = ''; for(let i=0; i<r.length; i++) res += String.fromCharCode(r.charCodeAt(i) ^ p.charCodeAt(i % p.length)); return decodeURIComponent(res); } catch(err) { return null; } };
+// 🔒 TRUE AES-256-GCM Encryption (Web Crypto API)
+const getCryptoKey = async (password: string, salt: Uint8Array) => {
+  const enc = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey("raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]);
+  return window.crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+};
+
+const encryptMsg = async (text: string, password: string) => {
+  try {
+    const enc = new TextEncoder();
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const key = await getCryptoKey(password, salt);
+    const cipher = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(text));
+    
+    const cipherArray = new Uint8Array(cipher);
+    const combined = new Uint8Array(salt.length + iv.length + cipherArray.length);
+    combined.set(salt, 0); combined.set(iv, salt.length); combined.set(cipherArray, salt.length + iv.length);
+    
+    let binary = ''; for (let i = 0; i < combined.byteLength; i++) binary += String.fromCharCode(combined[i]);
+    return btoa(binary);
+  } catch (err) { return ""; }
+};
+
+const decryptMsg = async (encryptedBase64: string, password: string) => {
+  try {
+    const binaryStr = atob(encryptedBase64);
+    const combined = new Uint8Array(binaryStr.length);
+    for(let i=0; i<binaryStr.length; i++) combined[i] = binaryStr.charCodeAt(i);
+    
+    const salt = combined.slice(0, 16);
+    const iv = combined.slice(16, 28);
+    const data = combined.slice(28);
+    
+    const key = await getCryptoKey(password, salt);
+    const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+    return new TextDecoder().decode(decrypted);
+  } catch (err) { return null; }
+};
 
 type VaultRecord = { hash: string, data: string, type: 'text'|'file'|'ai_prompt', fileName?: string, timestamp: number };
 type OnChainTx = { hash: string, timestamp: number, success: boolean, version: string };
@@ -141,7 +178,8 @@ function ShelbyVault() {
       const response = await signAndSubmitTransaction(payload);
       
       if (response && response.hash) {
-        const newRecord: VaultRecord = { hash: response.hash, data: encryptMsg(rawData, secretKey), type: vaultMode, fileName: selectedFile?.name, timestamp: Date.now() };
+        const encryptedData = await encryptMsg(rawData, secretKey);
+        const newRecord: VaultRecord = { hash: response.hash, data: encryptedData, type: vaultMode, fileName: selectedFile?.name, timestamp: Date.now() };
         const newHistory = [newRecord, ...history];
         setHistory(newHistory); localStorage.setItem("shelby_final_vault", JSON.stringify(newHistory));
         setCode(""); setSelectedFile(null); setSecretKey("");
@@ -158,7 +196,7 @@ function ShelbyVault() {
     alert("Link Copied! Share this link and the password with your friend.");
   };
 
-  const processUnlock = () => {
+  const processUnlock = async () => {
     let targetData = ""; let recordInfo: any = null;
     const params = new URLSearchParams(window.location.search);
     const urlHash = params.get('hash'); const urlData = params.get('data'); const urlType = params.get('type'); const urlFname = params.get('fname');
@@ -171,7 +209,7 @@ function ShelbyVault() {
     }
 
     if (targetData) {
-      const result = decryptMsg(targetData, unlockKey);
+      const result = await decryptMsg(targetData, unlockKey);
       if (result) {
         if (recordInfo.type === 'file') setDecryptedData(`https://gateway.pinata.cloud/ipfs/${result}`);
         else setDecryptedData(result);
@@ -185,7 +223,7 @@ function ShelbyVault() {
   const closeUnlockModal = () => { setSelectedHash(null); setDecryptedData(null); setUnlockKey(""); if (window.history.pushState) window.history.pushState({}, '', window.location.pathname); };
 
   if (!mounted) return null;
-    return (
+  return (
     <div className={`min-h-screen w-full flex flex-col items-center p-4 font-sans pb-20 transition-colors duration-500 relative ${isLightMode ? 'bg-[#f8f9fa] text-slate-900' : 'bg-[#050505] text-white'}`}>
       
       <div className="w-full max-w-6xl flex justify-end items-center gap-3 pt-2 px-2">
@@ -234,7 +272,7 @@ function ShelbyVault() {
         </div>
       </header>
 
-      <div className={`w-full max-w-6xl mt-4 flex justify-between items-center rounded-lg px-6 py-3 text-xs font-mono border ${isLightMode ? 'bg-white border-slate-200 text-slate-500' : 'bg-[#0f0f0f] border-white/10 text-gray-400'}`}>
+            <div className={`w-full max-w-6xl mt-4 flex justify-between items-center rounded-lg px-6 py-3 text-xs font-mono border ${isLightMode ? 'bg-white border-slate-200 text-slate-500' : 'bg-[#0f0f0f] border-white/10 text-gray-400'}`}>
         <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'}`}></div><span className={connected ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>{connected ? `NODE: ${network?.name?.toUpperCase() || 'TESTNET'}` : 'OFFLINE'}</span></div>
         <div><span>LATENCY: <span className="text-cyan-500">{latency}ms</span></span></div>
       </div>
