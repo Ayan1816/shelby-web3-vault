@@ -1,45 +1,59 @@
-module shelby_vault::vault {
+module shelby::vault {
     use std::string::String;
-    use aptos_framework::account;
-    use aptos_framework::event;
     use aptos_framework::timestamp;
+    use std::vector;
+    use std::signer;
 
-    // এই স্ট্রাকচারটি হলো আমাদের ডেটাবেস
-    struct VaultRecord has key {
-        data: String,
+    /// Error Codes
+    const E_VAULT_NOT_INITIALIZED: u64 = 1;
+
+    // Struct to hold individual encrypted records
+    struct VaultRecord has store, drop, copy {
+        data_hash: String,
+        encrypted_payload: String,
+        asset_type: String,
         timestamp: u64,
     }
 
-    // যখন কেউ নতুন ডেটা সেভ করবে, তখন এই ইভেন্টটি ফায়ার হবে
-    #[event]
-    struct RecordStored has drop, store {
-        owner: address,
-        timestamp: u64,
+    // Struct to hold the user's entire vault
+    struct UserVault has key {
+        records: vector<VaultRecord>,
     }
 
-    // এই ফাংশনটি দিয়ে ইউজাররা তাদের ডেটা সেভ করবে
-    public entry fun store_data(account: &signer, encrypted_data: String) {
-        let owner_addr = address_of(account);
-        let current_time = timestamp::now_seconds();
-
-        // যদি আগে থেকে কোনো ডেটা থাকে, তবে সেটি মুছে নতুনটা বসাবে
-        if (exists<VaultRecord>(owner_addr)) {
-            let record = borrow_global_mut<VaultRecord>(owner_addr);
-            record.data = encrypted_data;
-            record.timestamp = current_time;
-        } else {
-            // যদি নতুন হয়, তবে নতুন করে সেভ করবে
-            move_to(account, VaultRecord {
-                data: encrypted_data,
-                timestamp: current_time,
+    /// Initialize a secure vault for the user
+    public entry fun init_vault(account: &signer) {
+        let addr = signer::address_of(account);
+        if (!exists<UserVault>(addr)) {
+            move_to(account, UserVault {
+                records: vector::empty<VaultRecord>(),
             });
+        }
+    }
+
+    /// Store newly encrypted AES-256 data directly on the Aptos Ledger
+    public entry fun store_secure_data(
+        account: &signer,
+        data_hash: String,
+        encrypted_payload: String,
+        asset_type: String
+    ) acquires UserVault {
+        let addr = signer::address_of(account);
+        
+        // Auto-initialize vault if not exists
+        if (!exists<UserVault>(addr)) {
+            init_vault(account);
         };
 
-        // ইভেন্ট ফায়ার করা
-        event::emit(RecordStored {
-            owner: owner_addr,
+        let vault = borrow_global_mut<UserVault>(addr);
+        let current_time = timestamp::now_seconds();
+
+        let new_record = VaultRecord {
+            data_hash,
+            encrypted_payload,
+            asset_type,
             timestamp: current_time,
-        });
+        };
+
+        vector::push_back(&mut vault.records, new_record);
     }
 }
-
