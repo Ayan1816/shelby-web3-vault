@@ -113,24 +113,52 @@ function ShelbyVault() {
       catch (e) { setJsonError("Invalid JSON format! Check your AI Prompt structure."); }
     } else { setJsonError(""); }
   }, [code, vaultMode]);
-    // ✅ FIXED: Balance Checking Logic Restored Properly
-  const fetchBlockchainData = async () => {
+    const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
       let nodeUrl = 'https://fullnode.testnet.aptoslabs.com/v1';
       if (network?.name?.toLowerCase().includes('mainnet')) nodeUrl = 'https://fullnode.mainnet.aptoslabs.com/v1';
       
+      // NEW: Dynamic Node selection if user is on Shelbynet
+      if (network?.name?.toLowerCase().includes('shelby')) nodeUrl = 'https://api.shelbynet.shelby.xyz/v1';
+      
+      const customUrl = (network as any)?.url || (network as any)?.nodeUrl;
+      if (customUrl) nodeUrl = customUrl.endsWith('/v1') ? customUrl : `${customUrl.replace(/\/$/, "")}/v1`;
+
       const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
       
-      const resourceUrl = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>?_=${Date.now()}`;
-      const balRes = await fetch(resourceUrl, fetchOptions).catch(() => null);
-      if (balRes && balRes.ok) { 
-        const balData = await balRes.json(); 
-        setBalance((parseInt(balData?.data?.coin?.value || "0") / 100000000).toFixed(4)); 
+      // 1. Fetch Default APT Balance
+      const balanceUrl = `${nodeUrl}/accounts/${account.address}/balance/0x1::aptos_coin::AptosCoin?_=${Date.now()}`;
+      let balanceFetched = false;
+      const balRes = await fetch(balanceUrl, fetchOptions).catch(() => null);
+      if (balRes && balRes.ok) { const balData = await balRes.json(); const rawBalance = balData?.balance || balData; if (rawBalance !== undefined) { setBalance((parseInt(rawBalance) / 100000000).toFixed(4)); balanceFetched = true; } }
+
+      // Fallback for APT
+      const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
+      const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
+      if (fRes && fRes.ok) {
+          const allData = await fRes.json();
+          if (!balanceFetched) { const coinData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"); if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4)); else setBalance("0.00"); }
+      } else { if (!balanceFetched) setBalance("0.00"); }
+
+      // 2. NEW: Explicitly Fetch S-USD Balance from Shelby Network API directly
+      const shelbyNodeUrl = 'https://api.shelbynet.shelby.xyz/v1';
+      const shelbyFallbackUrl = `${shelbyNodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
+      const shelbyRes = await fetch(shelbyFallbackUrl, fetchOptions).catch(() => null);
+      if (shelbyRes && shelbyRes.ok) {
+          const sData = await shelbyRes.json();
+          const shelbyData = sData.find((r: any) => (r.type.toLowerCase().includes("shelby") || r.type.includes(SHELBY_CONTRACT_ADDRESS)) && (r.data?.coin?.value !== undefined || r.data?.balance !== undefined));
+          if (shelbyData) { 
+              const val = shelbyData.data?.coin?.value || shelbyData.data?.balance || "0"; 
+              setShelbyBalance((parseInt(val) / 100000000).toFixed(2)); 
+          } else { 
+              setShelbyBalance("0.00"); 
+          }
       } else {
-        setBalance("0.00");
+          setShelbyBalance("0.00");
       }
 
+      // 3. Fetch TX History
       const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
       const txRes = await fetch(txUrl, fetchOptions).catch(() => null);
       if (txRes && txRes.ok) { const txns = await txRes.json(); if (Array.isArray(txns)) { const userTxns = txns.filter((tx: any) => tx.type === 'user_transaction').map((tx: any) => ({ hash: tx.hash, timestamp: tx.timestamp ? parseInt(tx.timestamp)/1000 : Date.now(), success: tx.success, version: tx.version })); setOnChainHistory(userTxns); } }
@@ -142,15 +170,10 @@ function ShelbyVault() {
     else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
 
-  // ✅ FIXED: Updated Official Aptos Faucet Link
   const handleFaucet = (type: 'apt' | 'shelby') => {
-    if (type === 'apt') {
-      pushNotification("APT Faucet", "Opening official Aptos Faucet...", "info");
-      window.open("https://aptos.dev/en/network/faucet", "_blank");
-    } else {
-      pushNotification("Shelby Faucet", "Use /faucet command in Shelby Discord!", "info");
-      alert("Shelby Faucet is handled via Discord.\n\nPlease go to the official Shelby Discord and type '/faucet' in the dev or partners channel to receive S-USD.");
-    }
+    pushNotification("Faucet Requested", `Redirected to ${type.toUpperCase()} official faucet`, "info");
+    if (type === 'apt') window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
+    else window.open("https://docs.shelby.xyz/apis/faucet/aptos", "_blank"); // NEW: Updated Shelby Faucet URL
   };
 
   const uploadFileToIPFS = async (file: File) => {
@@ -161,25 +184,19 @@ function ShelbyVault() {
   };
 
   const handleUpload = async () => {
-    if (vaultMode === 'ai_prompt' && jsonError) return alert("Please fix the JSON errors before locking!");
-    if (!secretKey || (!code && !selectedFile)) return alert("Fill all fields & set a password!");
+    if (vaultMode === 'ai_prompt' && jsonError) {
+      pushNotification("JSON Error", "Fix invalid JSON format before locking", "error");
+      return alert("Please fix the JSON errors before locking!");
+    }
+    if (!secretKey || (!code && !selectedFile)) { pushNotification("Validation Error", "Please provide asset data and set password", "error"); return alert("Fill all fields & set a password!"); }
     
     setIsUploading(true);
     pushNotification("Transaction Pending...", "Please approve in your Petra Wallet", "info");
-    
     try {
       let rawData = code;
       if (vaultMode === 'file' && selectedFile) { const ipfsHash = await uploadFileToIPFS(selectedFile); rawData = ipfsHash; }
-      
-      const payload = {
-        data: {
-          function: "0x1::aptos_account::transfer",
-          typeArguments: [],
-          functionArguments: [account?.address, 0]
-        }
-      };
-
-      const response = await signAndSubmitTransaction(payload as any);
+      const payload = { data: { function: "0x1::aptos_account::transfer", typeArguments: [], functionArguments: [account?.address, 0] } };
+      const response = await signAndSubmitTransaction(payload);
       
       if (response && response.hash) {
         const encryptedData = await encryptMsg(rawData, secretKey);
@@ -190,11 +207,7 @@ function ShelbyVault() {
         pushNotification("Asset Secured!", `Hash: ${response.hash.slice(0, 10)}... synced perfectly`, "success");
         alert("Secure Asset Locked on Aptos Ledger!"); setTimeout(fetchBlockchainData, 2000);
       }
-    } catch (error) { 
-      pushNotification("Transaction Failed", "User rejected request or network timeout", "error"); 
-    } finally { 
-      setIsUploading(false); 
-    }
+    } catch (error) { pushNotification("Transaction Failed", "User rejected request or network timeout", "error"); alert("Transaction Failed!"); } finally { setIsUploading(false); }
   };
     const handleShare = (rec: VaultRecord) => {
     const link = `${window.location.origin}?hash=${rec.hash}&data=${encodeURIComponent(rec.data)}&type=${rec.type}&fname=${encodeURIComponent(rec.fileName || "")}`;
@@ -271,15 +284,16 @@ function ShelbyVault() {
             <>
               <button onClick={() => handleFaucet('apt')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs uppercase transition-colors bg-blue-500/10 border border-blue-500/30 text-blue-500 hover:bg-blue-500/20"><Zap className="w-3.5 h-3.5" /> APT Faucet</button>
               <button onClick={() => handleFaucet('shelby')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs uppercase transition-colors bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-500 hover:bg-fuchsia-500/20"><Zap className="w-3.5 h-3.5" /> S-USD Faucet</button>
+              
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span></div>
+              
+              {/* NEW: S-USD Balance Widget added right next to APT Balance */}
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-600 dark:text-fuchsia-400 font-mono"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{shelbyBalance} S-USD</span></div>
+
               <button onClick={copyAddress} className={`flex items-center gap-2 border px-4 py-2 rounded-lg ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'}`}><span className="text-sm font-mono text-fuchsia-500 dark:text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
               <button onClick={() => { disconnect(); pushNotification("Disconnected", "Wallet unlinked successfully", "info"); }} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 hover:bg-red-500/20"><LogOut className="w-4 h-4" /></button>
             </>
-          ) : <button onClick={() => {
-              const petraWallet = wallets?.find(w => w.name === "Petra");
-              if (petraWallet) connect(petraWallet.name);
-              else connect(wallets?.[0]?.name || "Petra" as any);
-            }} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
+          ) : <button onClick={() => wallets?.length ? connect(wallets[0].name) : alert("Install Petra!")} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
         </div>
       </header>
 
