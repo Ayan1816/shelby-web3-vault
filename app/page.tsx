@@ -12,7 +12,7 @@ export default function App() {
   );
 }
 
-// 🔒 TRUE AES-256-GCM Encryption (Web Crypto API)
+// 🔐 TRUE AES-256-GCM Encryption (Web Crypto API)
 const getCryptoKey = async (password: string, salt: Uint8Array) => {
   const enc = new TextEncoder();
   const keyMaterial = await window.crypto.subtle.importKey("raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]);
@@ -56,8 +56,10 @@ type VaultRecord = { hash: string, data: string, type: 'text'|'file'|'ai_prompt'
 type OnChainTx = { hash: string, timestamp: number, success: boolean, version: string };
 type AppNotification = { id: string, title: string, message: string, time: string, type: 'success' | 'error' | 'info' };
 
+// 🚀 SHELBY OFFICIAL SMART CONTRACT ADDRESS
+const SHELBY_CONTRACT_ADDRESS = "0x85fdb9a176ab8ef1d9d9c1b60d60b3924f0800ac1de1cc2085fb0b8bb4988e6a";
 function ShelbyVault() {
-  const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
+  const { connected, account, signAndSubmitTransaction, disconnect, connect, network } = useWallet();
   const [mounted, setMounted] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   
@@ -105,38 +107,24 @@ function ShelbyVault() {
     if (connected && account?.address) pushNotification("Wallet Connected", `Address: ${account.address.slice(0, 6)}...${account.address.slice(-4)}`, "success");
   }, [connected, account]);
 
-  // AI Prompt JSON Validation Engine
   useEffect(() => {
     if (vaultMode === 'ai_prompt' && code.length > 0) {
       try { JSON.parse(code); setJsonError(""); } 
       catch (e) { setJsonError("Invalid JSON format! Check your AI Prompt structure."); }
     } else { setJsonError(""); }
   }, [code, vaultMode]);
-
-  const fetchBlockchainData = async () => {
+    const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
       let nodeUrl = 'https://fullnode.testnet.aptoslabs.com/v1';
       if (network?.name?.toLowerCase().includes('mainnet')) nodeUrl = 'https://fullnode.mainnet.aptoslabs.com/v1';
-      const customUrl = (network as any)?.url || (network as any)?.nodeUrl;
-      if (customUrl) nodeUrl = customUrl.endsWith('/v1') ? customUrl : `${customUrl.replace(/\/$/, "")}/v1`;
-
+      
       const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
       const assetType = "0x1::aptos_coin::AptosCoin";
       const balanceUrl = `${nodeUrl}/accounts/${account.address}/balance/${assetType}?_=${Date.now()}`;
       
-      let balanceFetched = false;
       const balRes = await fetch(balanceUrl, fetchOptions).catch(() => null);
-      if (balRes && balRes.ok) { const balData = await balRes.json(); const rawBalance = balData?.balance || balData; if (rawBalance !== undefined) { setBalance((parseInt(rawBalance) / 100000000).toFixed(4)); balanceFetched = true; } }
-
-      const fallbackUrl = `${nodeUrl}/accounts/${account.address}/resources?_=${Date.now()}`;
-      const fRes = await fetch(fallbackUrl, fetchOptions).catch(() => null);
-      if (fRes && fRes.ok) {
-          const allData = await fRes.json();
-          if (!balanceFetched) { const coinData = allData.find((r: any) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"); if (coinData?.data?.coin?.value) setBalance((parseInt(coinData.data.coin.value) / 100000000).toFixed(4)); else setBalance("0.00"); }
-          const shelbyData = allData.find((r: any) => r.type.toLowerCase().includes("shelby") && (r.data?.coin?.value !== undefined || r.data?.balance !== undefined));
-          if (shelbyData) { const val = shelbyData.data?.coin?.value || shelbyData.data?.balance || "0"; setShelbyBalance((parseInt(val) / 100000000).toFixed(2)); } else { setShelbyBalance("0.00"); }
-      } else { if (!balanceFetched) setBalance("0.00"); }
+      if (balRes && balRes.ok) { const balData = await balRes.json(); setBalance((parseInt(balData?.balance || "0") / 100000000).toFixed(4)); }
 
       const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
       const txRes = await fetch(txUrl, fetchOptions).catch(() => null);
@@ -149,10 +137,15 @@ function ShelbyVault() {
     else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
 
+  // ✅ FIXED: Faucet Links
   const handleFaucet = (type: 'apt' | 'shelby') => {
-    pushNotification("Faucet Requested", `Redirected to ${type.toUpperCase()} official faucet`, "info");
-    if (type === 'apt') window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#apt-faucet", "_blank");
-    else window.open("https://docs.shelby.xyz/tools/wallets/petra-setup#shelbyusd-faucet", "_blank");
+    if (type === 'apt') {
+      pushNotification("APT Faucet", "Redirecting to official Aptos Faucet...", "info");
+      window.open("https://aptoslabs.com/testnet-faucet", "_blank");
+    } else {
+      pushNotification("Shelby Faucet", "Use /faucet command in Shelby Discord!", "info");
+      alert("Shelby Faucet is handled via Discord.\n\nPlease go to the official Shelby Discord and type '/faucet' in the dev or partners channel to receive S-USD.");
+    }
   };
 
   const uploadFileToIPFS = async (file: File) => {
@@ -162,20 +155,41 @@ function ShelbyVault() {
     const data = await res.json(); return data.IpfsHash;
   };
 
+  // ✅ FIXED: Wallet Permission and Payload
   const handleUpload = async () => {
-    if (vaultMode === 'ai_prompt' && jsonError) {
-      pushNotification("JSON Error", "Fix invalid JSON format before locking", "error");
-      return alert("Please fix the JSON errors before locking!");
-    }
-    if (!secretKey || (!code && !selectedFile)) { pushNotification("Validation Error", "Please provide asset data and set password", "error"); return alert("Fill all fields & set a password!"); }
+    if (vaultMode === 'ai_prompt' && jsonError) return alert("Please fix the JSON errors before locking!");
+    if (!secretKey || (!code && !selectedFile)) return alert("Fill all fields & set a password!");
     
     setIsUploading(true);
     pushNotification("Transaction Pending...", "Please approve in your Petra Wallet", "info");
+    
     try {
       let rawData = code;
       if (vaultMode === 'file' && selectedFile) { const ipfsHash = await uploadFileToIPFS(selectedFile); rawData = ipfsHash; }
-      const payload = { data: { function: "0x1::aptos_account::transfer", typeArguments: [], functionArguments: [account?.address, 0] } };
-      const response = await signAndSubmitTransaction(payload);
+      
+      // The Safe Aptos Payload (Ensures the popup appears properly)
+      const payload = {
+        data: {
+          function: "0x1::aptos_account::transfer",
+          typeArguments: [],
+          functionArguments: [account?.address, 0]
+        }
+      };
+
+      /* 
+       * 🚀 SHELBY CONTRACT INTEGRATION (Ready for future use)
+       * When you are ready to send data directly to the Shelby contract, replace the payload above with this:
+       * 
+       * const payload = {
+       *   data: {
+       *     function: `${SHELBY_CONTRACT_ADDRESS}::blob_metadata::register_blob`,
+       *     typeArguments: [],
+       *     functionArguments: [ "YOUR_BLOB_HASH_HERE", "YOUR_SIZE_HERE" ] // Requires actual Shelby arguments
+       *   }
+       * };
+       */
+
+      const response = await signAndSubmitTransaction(payload as any);
       
       if (response && response.hash) {
         const encryptedData = await encryptMsg(rawData, secretKey);
@@ -186,10 +200,13 @@ function ShelbyVault() {
         pushNotification("Asset Secured!", `Hash: ${response.hash.slice(0, 10)}... synced perfectly`, "success");
         alert("Secure Asset Locked on Aptos Ledger!"); setTimeout(fetchBlockchainData, 2000);
       }
-    } catch (error) { pushNotification("Transaction Failed", "User rejected request or network timeout", "error"); alert("Transaction Failed!"); } finally { setIsUploading(false); }
+    } catch (error) { 
+      pushNotification("Transaction Failed", "User rejected request or network timeout", "error"); 
+    } finally { 
+      setIsUploading(false); 
+    }
   };
-
-  const handleShare = (rec: VaultRecord) => {
+    const handleShare = (rec: VaultRecord) => {
     const link = `${window.location.origin}?hash=${rec.hash}&data=${encodeURIComponent(rec.data)}&type=${rec.type}&fname=${encodeURIComponent(rec.fileName || "")}`;
     navigator.clipboard.writeText(link);
     pushNotification("Link Copied", "Encrypted drop link copied to clipboard", "success");
@@ -268,16 +285,15 @@ function ShelbyVault() {
               <button onClick={copyAddress} className={`flex items-center gap-2 border px-4 py-2 rounded-lg ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'}`}><span className="text-sm font-mono text-fuchsia-500 dark:text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
               <button onClick={() => { disconnect(); pushNotification("Disconnected", "Wallet unlinked successfully", "info"); }} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 hover:bg-red-500/20"><LogOut className="w-4 h-4" /></button>
             </>
-          ) : <button onClick={() => wallets?.length ? connect(wallets[0].name) : alert("Install Petra!")} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
+          ) : <button onClick={() => connect("Petra" as any)} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
         </div>
       </header>
 
-            <div className={`w-full max-w-6xl mt-4 flex justify-between items-center rounded-lg px-6 py-3 text-xs font-mono border ${isLightMode ? 'bg-white border-slate-200 text-slate-500' : 'bg-[#0f0f0f] border-white/10 text-gray-400'}`}>
+      <div className={`w-full max-w-6xl mt-4 flex justify-between items-center rounded-lg px-6 py-3 text-xs font-mono border ${isLightMode ? 'bg-white border-slate-200 text-slate-500' : 'bg-[#0f0f0f] border-white/10 text-gray-400'}`}>
         <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]' : 'bg-red-500 shadow-[0_0_10px_#ef4444]'}`}></div><span className={connected ? 'text-green-500 font-bold' : 'text-red-500 font-bold'}>{connected ? `NODE: ${network?.name?.toUpperCase() || 'TESTNET'}` : 'OFFLINE'}</span></div>
         <div><span>LATENCY: <span className="text-cyan-500">{latency}ms</span></span></div>
       </div>
-
-      <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-6 mt-6">
+            <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-6 mt-6">
         <main className="flex-1 space-y-6">
           <div className={`border rounded-xl p-6 relative ${isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0f0f0f] border-white/10'}`}>
             <div className={`flex flex-wrap gap-2 sm:gap-4 mb-6 border-b pb-4 ${isLightMode ? 'border-slate-100' : 'border-white/5'}`}>
@@ -305,8 +321,8 @@ function ShelbyVault() {
                 <label className="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1.5"><Database className="w-3 h-3"/> Target Storage Routing Engine</label>
                 <div className={`relative border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-[#1a1a1a]'}`}>
                   <select className={`w-full p-3 text-xs font-mono outline-none appearance-none cursor-pointer ${isLightMode ? 'bg-transparent text-slate-700' : 'bg-transparent text-gray-300'}`}>
-                    <option value="ipfs">🟢 Interplanetary File System (IPFS) - ACTIVE</option>
-                    <option value="shelby" disabled>🔴 Shelby Native S3 Storage - (COMING SOON)</option>
+                    <option value="ipfs">⚡ Interplanetary File System (IPFS) - ACTIVE</option>
+                    <option value="shelby" disabled>🔒 Shelby Native Storage (0x85fdb9...) - SOON</option>
                   </select>
                   <div className="absolute right-3 top-3 pointer-events-none text-gray-500">▼</div>
                 </div>
