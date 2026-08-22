@@ -59,7 +59,7 @@ type AppNotification = { id: string, title: string, message: string, time: strin
 // 🚀 SHELBY OFFICIAL SMART CONTRACT ADDRESS
 const SHELBY_CONTRACT_ADDRESS = "0x85fdb9a176ab8ef1d9d9c1b60d60b3924f0800ac1de1cc2085fb0b8bb4988e6a";
 function ShelbyVault() {
-  const { connected, account, signAndSubmitTransaction, disconnect, connect, network } = useWallet();
+  const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
   const [mounted, setMounted] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   
@@ -113,18 +113,23 @@ function ShelbyVault() {
       catch (e) { setJsonError("Invalid JSON format! Check your AI Prompt structure."); }
     } else { setJsonError(""); }
   }, [code, vaultMode]);
-    const fetchBlockchainData = async () => {
+    // ✅ FIXED: Balance Checking Logic Restored Properly
+  const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
       let nodeUrl = 'https://fullnode.testnet.aptoslabs.com/v1';
       if (network?.name?.toLowerCase().includes('mainnet')) nodeUrl = 'https://fullnode.mainnet.aptoslabs.com/v1';
       
       const fetchOptions: RequestInit = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } };
-      const assetType = "0x1::aptos_coin::AptosCoin";
-      const balanceUrl = `${nodeUrl}/accounts/${account.address}/balance/${assetType}?_=${Date.now()}`;
       
-      const balRes = await fetch(balanceUrl, fetchOptions).catch(() => null);
-      if (balRes && balRes.ok) { const balData = await balRes.json(); setBalance((parseInt(balData?.balance || "0") / 100000000).toFixed(4)); }
+      const resourceUrl = `${nodeUrl}/accounts/${account.address}/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>?_=${Date.now()}`;
+      const balRes = await fetch(resourceUrl, fetchOptions).catch(() => null);
+      if (balRes && balRes.ok) { 
+        const balData = await balRes.json(); 
+        setBalance((parseInt(balData?.data?.coin?.value || "0") / 100000000).toFixed(4)); 
+      } else {
+        setBalance("0.00");
+      }
 
       const txUrl = `${nodeUrl}/accounts/${account.address}/transactions?limit=30&_=${Date.now()}`;
       const txRes = await fetch(txUrl, fetchOptions).catch(() => null);
@@ -137,11 +142,11 @@ function ShelbyVault() {
     else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
 
-  // ✅ FIXED: Faucet Links
+  // ✅ FIXED: Updated Official Aptos Faucet Link
   const handleFaucet = (type: 'apt' | 'shelby') => {
     if (type === 'apt') {
-      pushNotification("APT Faucet", "Redirecting to official Aptos Faucet...", "info");
-      window.open("https://aptoslabs.com/testnet-faucet", "_blank");
+      pushNotification("APT Faucet", "Opening official Aptos Faucet...", "info");
+      window.open("https://aptos.dev/en/network/faucet", "_blank");
     } else {
       pushNotification("Shelby Faucet", "Use /faucet command in Shelby Discord!", "info");
       alert("Shelby Faucet is handled via Discord.\n\nPlease go to the official Shelby Discord and type '/faucet' in the dev or partners channel to receive S-USD.");
@@ -155,7 +160,6 @@ function ShelbyVault() {
     const data = await res.json(); return data.IpfsHash;
   };
 
-  // ✅ FIXED: Wallet Permission and Payload
   const handleUpload = async () => {
     if (vaultMode === 'ai_prompt' && jsonError) return alert("Please fix the JSON errors before locking!");
     if (!secretKey || (!code && !selectedFile)) return alert("Fill all fields & set a password!");
@@ -167,7 +171,6 @@ function ShelbyVault() {
       let rawData = code;
       if (vaultMode === 'file' && selectedFile) { const ipfsHash = await uploadFileToIPFS(selectedFile); rawData = ipfsHash; }
       
-      // The Safe Aptos Payload (Ensures the popup appears properly)
       const payload = {
         data: {
           function: "0x1::aptos_account::transfer",
@@ -175,19 +178,6 @@ function ShelbyVault() {
           functionArguments: [account?.address, 0]
         }
       };
-
-      /* 
-       * 🚀 SHELBY CONTRACT INTEGRATION (Ready for future use)
-       * When you are ready to send data directly to the Shelby contract, replace the payload above with this:
-       * 
-       * const payload = {
-       *   data: {
-       *     function: `${SHELBY_CONTRACT_ADDRESS}::blob_metadata::register_blob`,
-       *     typeArguments: [],
-       *     functionArguments: [ "YOUR_BLOB_HASH_HERE", "YOUR_SIZE_HERE" ] // Requires actual Shelby arguments
-       *   }
-       * };
-       */
 
       const response = await signAndSubmitTransaction(payload as any);
       
@@ -285,7 +275,11 @@ function ShelbyVault() {
               <button onClick={copyAddress} className={`flex items-center gap-2 border px-4 py-2 rounded-lg ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'}`}><span className="text-sm font-mono text-fuchsia-500 dark:text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
               <button onClick={() => { disconnect(); pushNotification("Disconnected", "Wallet unlinked successfully", "info"); }} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 hover:bg-red-500/20"><LogOut className="w-4 h-4" /></button>
             </>
-          ) : <button onClick={() => connect("Petra" as any)} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
+          ) : <button onClick={() => {
+              const petraWallet = wallets?.find(w => w.name === "Petra");
+              if (petraWallet) connect(petraWallet.name);
+              else connect(wallets?.[0]?.name || "Petra" as any);
+            }} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
         </div>
       </header>
 
