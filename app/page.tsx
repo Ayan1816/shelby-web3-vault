@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, Sun, Moon, Bell, Trash2, AlertCircle, Info, Brain, Database, Terminal } from "lucide-react";
+import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, Sun, Moon, Bell, Trash2, AlertCircle, Info, Brain, Database } from "lucide-react";
 
 export default function App() {
   return (
@@ -41,22 +41,46 @@ const decryptMsg = async (encryptedBase64: string, password: string) => {
     const binaryStr = atob(encryptedBase64);
     const combined = new Uint8Array(binaryStr.length);
     for(let i=0; i<binaryStr.length; i++) combined[i] = binaryStr.charCodeAt(i);
-    
     const salt = combined.slice(0, 16);
     const iv = combined.slice(16, 28);
     const data = combined.slice(28);
-    
     const key = await getCryptoKey(password, salt);
     const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
     return new TextDecoder().decode(decrypted);
   } catch (err) { return null; }
 };
 
+// 🚀 OFFICIAL SHELBY NETWORK CONSTANTS (From the working project)
+const SHELBY_FULLNODE = "https://api.shelbynet.shelby.xyz/v1";
+const SHELBY_DEPLOYER = "0x85fdb9a176ab8ef1d9d9c1b60d60b3924f0800ac1de1cc2085fb0b8bb4988e6a";
+const SHELBYUSD_FA_METADATA = "0x1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1";
+const SHELBYUSD_DECIMALS = 100_000_000;
+const DEFAULT_CHUNKSET_SIZE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_ERASURE_N = 16;
+const DEFAULT_ADMIN_OCTAS_PER_CHUNK_PER_EPOCH = 3;
+const DEFAULT_SP_OCTAS_PER_CHUNK_PER_EPOCH = 39;
+
+const parseViewValue = (result: unknown): unknown => {
+  if (Array.isArray(result)) return result[0];
+  if (result && typeof result === "object" && "value" in result) {
+    const wrapped = (result as { value: unknown }).value;
+    return Array.isArray(wrapped) ? wrapped[0] : wrapped;
+  }
+  return result;
+};
+
+async function shelbyView(functionId: string, typeArguments: string[], args: unknown[]) {
+  const response = await fetch(`${SHELBY_FULLNODE}/view`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ function: functionId, type_arguments: typeArguments, arguments: args }),
+  });
+  if (!response.ok) throw new Error(`Shelby view failed`);
+  return response.json();
+}
+
 type VaultRecord = { hash: string, data: string, type: 'text'|'file'|'ai_prompt', fileName?: string, timestamp: number };
 type OnChainTx = { hash: string, timestamp: number, success: boolean, version: string };
 type AppNotification = { id: string, title: string, message: string, time: string, type: 'success' | 'error' | 'info' };
-
-const SHELBY_CONTRACT_ADDRESS = "0x85fdb9a176ab8ef1d9d9c1b60d60b3924f0800ac1de1cc2085fb0b8bb4988e6a";
 function ShelbyVault() {
   const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network } = useWallet();
   const [mounted, setMounted] = useState(false);
@@ -112,7 +136,7 @@ function ShelbyVault() {
       catch (e) { setJsonError("Invalid JSON format! Check your AI Prompt structure."); }
     } else { setJsonError(""); }
   }, [code, vaultMode]);
-    // ✅ DUAL BALANCE FETCHING (APT + S-USD)
+    // ✅ 100% ACCURATE S-USD FETCHING USING SHELBY'S SMART CONTRACT VIEW
   const fetchBlockchainData = async () => {
     if (!account?.address) return;
     try {
@@ -124,23 +148,18 @@ function ShelbyVault() {
         .then(data => setBalance(data?.data?.coin?.value ? (Number(data.data.coin.value) / 100000000).toFixed(4) : "0.00"))
         .catch(() => setBalance("0.00"));
 
-      // 2. Fetch S-USD directly from ShelbyNet (As shown in your video)
-      fetch(`https://api.shelbynet.shelby.xyz/v1/accounts/${account.address}/resources`, fetchOptions)
-        .then(res => res.json())
-        .then(data => {
-            if(Array.isArray(data)) {
-               // Finding any resource matching Shelby or USD to get the exact balance
-               const shelbyToken = data.find(r => r.type.toLowerCase().includes("shelby") || r.type.toLowerCase().includes("usd"));
-               if(shelbyToken) {
-                   const val = shelbyToken.data?.coin?.value || shelbyToken.data?.balance || "0";
-                   setShelbyBalance((Number(val) / 100000000).toFixed(4));
-               } else { setShelbyBalance("0.00"); }
-            }
-        }).catch(() => setShelbyBalance("0.00"));
+      // 2. Fetch S-USD via Shelby's Smart Contract (Just like the working project)
+      try {
+        const result = await shelbyView("0x1::primary_fungible_store::balance", ["0x1::fungible_asset::Metadata"], [account.address, SHELBYUSD_FA_METADATA]);
+        const raw = parseViewValue(result);
+        setShelbyBalance((Number(raw || 0) / SHELBYUSD_DECIMALS).toFixed(4));
+      } catch (e) {
+        setShelbyBalance("0.00");
+      }
 
       // 3. Fetch Transaction History
       let currentUrl = 'https://fullnode.testnet.aptoslabs.com/v1';
-      if (network?.name?.toLowerCase().includes('shelby') || network?.url?.includes('shelby')) currentUrl = 'https://api.shelbynet.shelby.xyz/v1';
+      if (network?.name?.toLowerCase().includes('shelby') || network?.url?.includes('shelby')) currentUrl = SHELBY_FULLNODE;
       
       fetch(`${currentUrl}/accounts/${account.address}/transactions?limit=30`, fetchOptions)
         .then(res => res.json())
@@ -158,10 +177,8 @@ function ShelbyVault() {
     else { setBalance("0.00"); setShelbyBalance("0.00"); setOnChainHistory([]); }
   }, [account, network, connected]);
 
-  // ✅ FIXED: Faucet Links properly updated based on your Video
   const handleFaucet = (type: 'apt' | 'shelby') => {
-    pushNotification("Faucet Requested", `Redirected to ${type.toUpperCase()} official faucet`, "info");
-    if (type === 'apt') window.open("https://docs.shelby.xyz/apis/faucet/aptos", "_blank");
+    if (type === 'apt') window.open("https://aptos.dev/en/network/faucet", "_blank");
     else window.open("https://docs.shelby.xyz/apis/faucet/shelbyusd", "_blank");
   };
 
@@ -172,45 +189,49 @@ function ShelbyVault() {
     const data = await res.json(); return data.IpfsHash;
   };
 
+  // ✅ EXACT SHELBY S-USD TRANSACTION LOGIC FROM SOURCE
   const handleUpload = async () => {
     if (vaultMode === 'ai_prompt' && jsonError) return alert("Please fix the JSON errors before locking!");
     if (!secretKey || (!code && !selectedFile)) return alert("Fill all fields & set a password!");
     
+    // Strict Network Check
+    const isShelbyNet = network?.name?.toLowerCase().includes('shelby') || network?.name?.toLowerCase().includes('custom') || network?.url?.includes('shelby');
+    if (!isShelbyNet) {
+        alert("Please switch your Petra wallet to Shelbynet to pay S-USD fees.");
+        return;
+    }
+
     setIsUploading(true);
     pushNotification("Transaction Pending...", "Please approve in your Petra Wallet", "info");
     
     try {
       let rawData = code;
       if (vaultMode === 'file' && selectedFile) { const ipfsHash = await uploadFileToIPFS(selectedFile); rawData = ipfsHash; }
+      const encryptedData = await encryptMsg(rawData, secretKey);
       
-      // ✅ SAFE PAYLOAD: This will NOT fail. It will deduct APT.
-      const safePayload = {
+      // Calculate Exact S-USD Fee dynamically based on file size (like the source)
+      const byteSize = new Blob([encryptedData]).size;
+      const chunksets = byteSize === 0 ? 1 : Math.ceil(byteSize / DEFAULT_CHUNKSET_SIZE_BYTES);
+      const storedChunks = chunksets * DEFAULT_ERASURE_N;
+      const octas = storedChunks * 30 * (DEFAULT_ADMIN_OCTAS_PER_CHUNK_PER_EPOCH + DEFAULT_SP_OCTAS_PER_CHUNK_PER_EPOCH); // 30 epochs (approx 1 month)
+      const exactFeeStr = octas.toString();
+
+      // Original Payload to cut S-USD (Fungible Asset Transfer)
+      const transactionPayload = {
         data: {
-          function: "0x1::aptos_account::transfer",
-          typeArguments: [],
-          functionArguments: [account?.address, 0]
+          function: "0x1::primary_fungible_store::transfer",
+          typeArguments: ["0x1::fungible_asset::Metadata"],
+          functionArguments: [
+            SHELBYUSD_FA_METADATA,
+            SHELBY_DEPLOYER,
+            exactFeeStr
+          ]
         }
       };
 
-      /* 
-       * 🚀 SHELBY NATIVE PAYLOAD (To Deduct S-USD)
-       * Note: If you want to deduct S-USD, you MUST use this payload below with EXACT arguments.
-       * If you pass wrong arguments, Petra Wallet will show "Transaction Failed".
-       * 
-       * const shelbyPayload = {
-       *   data: {
-       *     function: `${SHELBY_CONTRACT_ADDRESS}::blob_metadata::register_blob`,
-       *     typeArguments: [],
-       *     functionArguments: [ "YOUR_BLOB_HASH_HERE", 1024 ] // Replace with actual hash and size
-       *   }
-       * };
-       */
-
-      // Submitting the safe payload to prevent your errors. Replace `safePayload` with `shelbyPayload` when you have correct args!
-      const response = await signAndSubmitTransaction(safePayload as any);
+      const response = await signAndSubmitTransaction(transactionPayload as any);
       
       if (response && response.hash) {
-        const encryptedData = await encryptMsg(rawData, secretKey);
         const newRecord: VaultRecord = { hash: response.hash, data: encryptedData, type: vaultMode, fileName: selectedFile?.name, timestamp: Date.now() };
         const newHistory = [newRecord, ...history];
         setHistory(newHistory); localStorage.setItem("shelby_final_vault", JSON.stringify(newHistory));
@@ -220,7 +241,7 @@ function ShelbyVault() {
       }
     } catch (error) { 
       console.error(error);
-      pushNotification("Transaction Failed", "User rejected request or network error", "error"); 
+      pushNotification("Transaction Failed", "User rejected request or S-USD balance too low", "error"); 
     } finally { 
       setIsUploading(false); 
     }
@@ -258,18 +279,16 @@ function ShelbyVault() {
   const copyAddress = () => { if (account?.address) { navigator.clipboard.writeText(account.address); setCopied(true); pushNotification("Address Copied", "Wallet address copied to clipboard", "info"); setTimeout(() => setCopied(false), 2000); } };
   const closeUnlockModal = () => { setSelectedHash(null); setDecryptedData(null); setUnlockKey(""); if (window.history.pushState) window.history.pushState({}, '', window.location.pathname); };
 
-  // Checking if user is currently on Shelbynet in Petra Wallet
   const isShelbyNet = network?.name?.toLowerCase().includes('shelby') || network?.name?.toLowerCase().includes('custom') || network?.url?.includes('shelby');
 
   if (!mounted) return null;
   return (
     <div className={`min-h-screen w-full flex flex-col items-center p-4 font-sans pb-20 transition-colors duration-500 relative ${isLightMode ? 'bg-[#f8f9fa] text-slate-900' : 'bg-[#050505] text-white'}`}>
       
-      {/* ⚠️ IMPORTANT NETWORK INSTRUCTION FOR THE USER */}
       {connected && !isShelbyNet && (
          <div className="w-full max-w-6xl bg-rose-500/20 border border-rose-500/50 text-rose-400 p-3 text-center text-xs md:text-sm font-bold rounded-lg mb-2 flex flex-col md:flex-row items-center justify-center gap-2">
            <AlertCircle className="w-5 h-5"/> 
-           <span>You are on Testnet (Fee = APT). To use Shelby Chain (Fee = S-USD), open Petra Wallet 👉 Settings &gt; Network &gt; Add Custom Network: <b>https://api.shelbynet.shelby.xyz/v1</b></span>
+           <span>You must be on Shelbynet to pay S-USD fees! Open Petra Wallet 👉 Settings &gt; Network &gt; Add Custom Network: <b>https://api.shelbynet.shelby.xyz/v1</b></span>
          </div>
       )}
 
@@ -314,7 +333,6 @@ function ShelbyVault() {
               
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span></div>
               
-              {/* ✅ S-USD BALANCE WIDGET */}
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-600 dark:text-fuchsia-400 font-mono"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{shelbyBalance} S-USD</span></div>
 
               <button onClick={copyAddress} className={`flex items-center gap-2 border px-4 py-2 rounded-lg ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'}`}><span className="text-sm font-mono text-fuchsia-500 dark:text-fuchsia-300">{account.address?.slice(0, 6)}...{account.address?.slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
