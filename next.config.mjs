@@ -1,10 +1,24 @@
+const nodeBrowserStubs = {
+  fs: { browser: "./empty.ts" },
+  net: { browser: "./empty.ts" },
+  tls: { browser: "./empty.ts" },
+  crypto: { browser: "./empty.ts" },
+  stream: { browser: "./empty.ts" },
+  path: { browser: "./empty.ts" },
+  os: { browser: "./empty.ts" },
+  zlib: { browser: "./empty.ts" },
+  http: { browser: "./empty.ts" },
+  https: { browser: "./empty.ts" },
+  child_process: { browser: "./empty.ts" },
+};
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  turbopack: {
+    resolveAlias: nodeBrowserStubs,
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
@@ -20,7 +34,7 @@ const nextConfig = {
         zlib: false,
         http: false,
         https: false,
-        child_process: false
+        child_process: false,
       };
     }
     return config;
