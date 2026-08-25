@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { AptosWalletAdapterProvider, useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Copy, CheckCircle2, Shield, LogOut, Wallet, Coins, Key, Lock, Unlock, X, FileText, UploadCloud, File as FileIcon, Globe, Zap, Activity, Share2, Loader2, Sun, Moon, Bell, Trash2, AlertCircle, Info, Brain, Database, Terminal } from "lucide-react";
+import WalletConnectModal from "@/components/WalletConnectModal";
 import {
   SHELBY_FULLNODE,
   SHELBY_FAUCET,
@@ -26,7 +27,6 @@ export default function App() {
     <AptosWalletAdapterProvider
       autoConnect={true}
       dappConfig={{ network: SHELBYNET_SDK_NETWORK as any }}
-      optInWallets={["Petra"]}
       onError={(error) => console.log("Wallet error", error)}
     >
       <ShelbyVault />
@@ -73,8 +73,10 @@ type VaultRecord = { hash: string, data: string, type: 'text'|'file'|'ai_prompt'
 type OnChainTx = { hash: string, timestamp: number, success: boolean, version: string };
 type AppNotification = { id: string, title: string, message: string, time: string, type: 'success' | 'error' | 'info' };
 function ShelbyVault() {
-  const { connected, account, signAndSubmitTransaction, disconnect, connect, wallets, network, changeNetwork } = useWallet();
+  const { connected, account, signAndSubmitTransaction, disconnect, network, changeNetwork, wallet } = useWallet();
   const [mounted, setMounted] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const closeWalletModal = useCallback(() => setShowWalletModal(false), []);
   const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
@@ -152,13 +154,13 @@ function ShelbyVault() {
     try {
       const switched = await switchWalletToShelbynet(changeNetwork as any);
       if (switched) {
-        pushNotification("Network Switch Requested", "Approve Shelbynet (chain 118) in Petra Wallet", "info");
+        pushNotification("Network Switch Requested", "Approve Shelbynet (chain 118) in your wallet", "info");
       } else {
-        pushNotification("Add Shelbynet Manually", "Petra → Settings → Network → Add network → Node URL https://api.shelbynet.shelby.xyz/v1", "error");
+        pushNotification("Add Shelbynet Manually", "Wallet → Settings → Network → Add network → Node URL https://api.shelbynet.shelby.xyz/v1", "error");
       }
     } catch (error) {
       console.error(error);
-      pushNotification("Network Switch Failed", "Add Shelbynet in Petra: Settings > Network > Add network. Name: shelbynet, Node URL: https://api.shelbynet.shelby.xyz/v1", "error");
+      pushNotification("Network Switch Failed", "Add Shelbynet in your wallet: Settings > Network > Add network. Name: shelbynet, Node URL: https://api.shelbynet.shelby.xyz/v1", "error");
     } finally {
       setIsSwitchingNetwork(false);
     }
@@ -194,14 +196,14 @@ function ShelbyVault() {
   const handleUpload = async () => {
     if (vaultMode === 'ai_prompt' && jsonError) return alert("Please fix the JSON errors before locking!");
     if (!secretKey || (!code && !selectedFile)) return alert("Fill all fields & set a password!");
-    if (!account?.address) return alert("Connect Petra Wallet first.");
+    if (!account?.address) return alert("Connect a wallet first.");
     if (!isShelbynetWallet(network as any)) {
-        alert("Please switch your Petra wallet to Shelbynet to pay SHELBY_USD fees. Settings > Network > Add network: shelbynet / https://api.shelbynet.shelby.xyz/v1");
+        alert("Please switch your wallet to Shelbynet to pay SHELBY_USD fees. Settings > Network > Add network: shelbynet / https://api.shelbynet.shelby.xyz/v1");
         await handleSwitchToShelbynet();
         return;
     }
     setIsUploading(true);
-    pushNotification("Transaction Pending...", "Approve 0x1::primary_fungible_store::transfer on Shelbynet in Petra", "info");
+    pushNotification("Transaction Pending...", "Approve 0x1::primary_fungible_store::transfer on Shelbynet in your wallet", "info");
     try {
       let rawData = code;
       if (vaultMode === 'file' && selectedFile) { const ipfsHash = await uploadFileToIPFS(selectedFile); rawData = ipfsHash; }
@@ -266,7 +268,7 @@ function ShelbyVault() {
       {connected && !isShelbyNet && (
          <div className="w-full max-w-6xl bg-rose-500/20 border border-rose-500/50 text-rose-400 p-3 text-center text-xs md:text-sm font-bold rounded-lg mb-2 flex flex-col md:flex-row items-center justify-center gap-2">
            <AlertCircle className="w-5 h-5"/> 
-           <span>Wallet is not on Shelbynet. Petra 👉 Settings &gt; Network &gt; Add network — Name: <b>shelbynet</b> · Node URL: <b>{SHELBY_FULLNODE}</b> · Chain ID {SHELBY_CHAIN_ID}</span>
+           <span>Wallet is not on Shelbynet. Settings &gt; Network &gt; Add network — Name: <b>shelbynet</b> · Node URL: <b>{SHELBY_FULLNODE}</b> · Chain ID {SHELBY_CHAIN_ID}</span>
            <button onClick={handleSwitchToShelbynet} disabled={isSwitchingNetwork} className="px-3 py-1.5 rounded-md bg-rose-500 text-white text-[10px] uppercase tracking-wide disabled:opacity-50">
              {isSwitchingNetwork ? "Switching..." : "Switch to Shelbynet"}
            </button>
@@ -309,14 +311,16 @@ function ShelbyVault() {
               <button onClick={() => handleFaucet('shelby')} className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs uppercase transition-colors bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-500 hover:bg-fuchsia-500/20"><Zap className="w-3.5 h-3.5" /> S-USD Faucet</button>
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{balance} APT</span></div>
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-600 dark:text-fuchsia-400 font-mono"><Coins className="w-4 h-4" /><span className="text-sm font-bold">{shelbyBalance} S-USD</span></div>
-              <button onClick={copyAddress} className={`flex items-center gap-2 border px-4 py-2 rounded-lg ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'}`}><span className="text-sm font-mono text-fuchsia-500 dark:text-fuchsia-300">{account.address.toString().slice(0, 6)}...{account.address.toString().slice(-4)}</span>{copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}</button>
-              <button onClick={() => { disconnect(); pushNotification("Disconnected", "Wallet unlinked successfully", "info"); }} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 hover:bg-red-500/20"><LogOut className="w-4 h-4" /></button>
+              <button onClick={copyAddress} className={`flex items-center gap-2 border px-4 py-2 rounded-lg ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'}`}>
+                {wallet?.icon && (wallet.icon.startsWith("data:image") || wallet.icon.startsWith("http")) ? (
+                  <img src={wallet.icon} alt={wallet.name} className="w-4 h-4 rounded-sm" />
+                ) : null}
+                <span className="text-sm font-mono text-fuchsia-500 dark:text-fuchsia-300">{account.address.toString().slice(0, 6)}...{account.address.toString().slice(-4)}</span>
+                {copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
+              </button>
+              <button onClick={() => { disconnect(); closeWalletModal(); pushNotification("Disconnected", "Wallet unlinked successfully", "info"); }} className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 hover:bg-red-500/20" title="Disconnect wallet"><LogOut className="w-4 h-4" /></button>
             </>
-          ) : <button onClick={() => {
-              const petraWallet = wallets?.find(w => w.name === "Petra");
-              if (petraWallet) connect(petraWallet.name);
-              else connect(wallets?.[0]?.name as any || "Petra" as any);
-            }} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
+          ) : <button onClick={() => setShowWalletModal(true)} className="flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 px-8 py-3 rounded-xl font-bold text-white hover:from-fuchsia-500 hover:to-purple-500"><Wallet className="w-5 h-5" /> Connect Wallet</button>}
         </div>
       </header>
       <div className={`w-full max-w-6xl mt-4 flex justify-between items-center rounded-lg px-6 py-3 text-xs font-mono border ${isLightMode ? 'bg-white border-slate-200 text-slate-500' : 'bg-[#0f0f0f] border-white/10 text-gray-400'}`}>
@@ -371,6 +375,7 @@ function ShelbyVault() {
           </div>
         </aside>
       </div>
+      <WalletConnectModal open={showWalletModal} onClose={closeWalletModal} isLightMode={isLightMode} />
       {selectedHash && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className={`border rounded-2xl w-full max-w-sm p-6 shadow-2xl ${isLightMode ? 'bg-white border-fuchsia-500 text-slate-900' : 'bg-[#0f0f0f] border-fuchsia-500/30'}`}>
